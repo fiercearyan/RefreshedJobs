@@ -15,15 +15,20 @@ declare global {
 }
 
 if (!uri) {
-  // Don't crash at import time during build; throw lazily when actually used.
+  // Defer the failure to whoever awaits the promise (their try/catch handles it),
+  // and attach a no-op catch so a missing URI doesn't crash the lambda with an
+  // unhandled promise rejection.
   clientPromise = Promise.reject(new Error("MONGODB_URI is not set"));
+  clientPromise.catch(() => {});
 } else if (process.env.NODE_ENV === "development") {
   if (!global._mongoClientPromise) {
     global._mongoClientPromise = new MongoClient(uri, options).connect();
+    global._mongoClientPromise.catch(() => {});
   }
   clientPromise = global._mongoClientPromise;
 } else {
   clientPromise = new MongoClient(uri, options).connect();
+  clientPromise.catch(() => {});
 }
 
 export default clientPromise;
