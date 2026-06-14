@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backend / Platform Job Board — India</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f5f7fa; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+  --brand:#4f46e5; --brand-soft:#eef2ff; --chip:#f1f5f9;
+  --green:#16a34a; --green-bg:#dcfce7; --blue:#2563eb; --blue-bg:#dbeafe;
+  --amber:#d97706; --amber-bg:#fef3c7; --slate:#475569; --slate-bg:#f1f5f9;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 4px 14px rgba(15,23,42,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.45}
+a{color:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 18px 60px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:14px;justify-content:space-between;margin-bottom:18px}
+.title h1{margin:0;font-size:21px;font-weight:700;letter-spacing:-.01em}
+.title p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+.stat-pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:600;box-shadow:var(--shadow)}
+.pill b{color:var(--brand)}
+.searchbar{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 14px;box-shadow:var(--shadow);margin-bottom:16px}
+.searchbar svg{flex:none;color:var(--muted)}
+.searchbar input{border:0;outline:0;font-size:14.5px;width:100%;background:transparent;color:var(--ink)}
+.layout{display:grid;grid-template-columns:266px 1fr;gap:18px;align-items:start}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);position:sticky;top:14px}
+.side h3{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.fgroup{padding:13px 0;border-bottom:1px solid var(--line)}
+.fgroup:last-child{border-bottom:0;padding-bottom:0}
+.fgroup:first-child{padding-top:0}
+.opts{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.opt{cursor:pointer;user-select:none;font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--slate);transition:.12s}
+.opt:hover{border-color:#c7cfdb}
+.opt.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;cursor:pointer}
+.toggle span{font-size:13px;font-weight:600}
+.switch{position:relative;width:40px;height:22px;background:#cbd5e1;border-radius:999px;transition:.15s;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.toggle.on .switch{background:var(--brand)}
+.toggle.on .switch::after{left:20px}
+.exp-val{font-weight:700;color:var(--brand)}
+input[type=range]{width:100%;margin:12px 0 2px;accent-color:var(--brand)}
+.exp-scale{display:flex;justify-content:space-between;color:var(--muted);font-size:10.5px}
+.btn-reset{margin-top:14px;width:100%;border:1px solid var(--line);background:var(--chip);color:var(--slate);font-weight:600;font-size:12.5px;padding:9px;border-radius:9px;cursor:pointer}
+.btn-reset:hover{border-color:#c7cfdb}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:13px}
+.count{font-size:13px;color:var(--muted)}
+.count b{color:var(--ink)}
+.sort{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px;box-shadow:var(--shadow)}
+.sort button{border:0;background:transparent;font-size:12.5px;font-weight:600;color:var(--muted);padding:6px 12px;border-radius:7px;cursor:pointer}
+.sort button.on{background:var(--brand-soft);color:var(--brand)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:.12s;position:relative}
+.card:hover{border-color:#c7cfdb;box-shadow:0 6px 22px rgba(15,23,42,.09);transform:translateY(-1px)}
+.card.expfit{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft),var(--shadow)}
+.card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.card-head h2{margin:0;font-size:15.5px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+.company{margin:4px 0 0;font-size:13px;color:var(--slate);font-weight:600}
+.score{flex:none;text-align:center;border-radius:11px;padding:7px 9px;min-width:54px}
+.score b{display:block;font-size:17px;font-weight:800;line-height:1}
+.score small{font-size:9px;text-transform:uppercase;letter-spacing:.05em;opacity:.8}
+.s-green{background:var(--green-bg);color:var(--green)} .s-blue{background:var(--blue-bg);color:var(--blue)}
+.s-amber{background:var(--amber-bg);color:var(--amber)} .s-slate{background:var(--slate-bg);color:var(--slate)}
+.meta{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}
+.tag{font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;background:var(--chip);color:var(--slate);display:inline-flex;align-items:center;gap:4px}
+.tag.loc{background:#f0fdfa;color:#0f766e}
+.tag.remote{background:#dcfce7;color:#15803d}
+.tag.hybrid{background:#fef3c7;color:#b45309}
+.tag.onsite{background:#f1f5f9;color:#475569}
+.tag.sen{background:#ede9fe;color:#6d28d9}
+.tag.exp{background:#e0f2fe;color:#0369a1}
+.tag.ai{background:#fce7f3;color:#be185d}
+.tag.date{background:transparent;color:var(--muted);padding-left:0}
+.skills-row{margin:8px 0 0}
+.skills-row .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-bottom:5px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px}
+.chip.lang{background:#eef2ff;color:#4338ca}
+.chip.infra{background:#ecfeff;color:#0e7490}
+.reason{margin:12px 0 0;font-size:12.5px;color:var(--slate);background:#fafbfc;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:0 8px 8px 0;padding:9px 11px}
+.reason b{color:var(--ink)}
+.expfit-flag{margin-top:9px;font-size:11.5px;font-weight:700;color:var(--brand);display:none;align-items:center;gap:5px}
+.card.expfit .expfit-flag{display:flex}
+.card-foot{margin-top:auto;padding-top:13px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.applicants{font-size:11px;color:var(--muted)}
+.apply{background:var(--brand);color:#fff;text-decoration:none;font-size:12.5px;font-weight:700;padding:9px 15px;border-radius:9px;white-space:nowrap;transition:.12s}
+.apply:hover{background:#4338ca}
+.tabs{display:flex;gap:6px;margin-left:4px}
+.tab{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:600;color:var(--slate);cursor:pointer;box-shadow:var(--shadow);white-space:nowrap}
+.tab span{color:var(--muted);font-weight:700;margin-left:2px}
+.tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.tab.on span{color:#fff;opacity:.9}
+.card-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.act{flex:1;min-width:118px;border:1px solid var(--line);background:var(--chip);color:var(--slate);font-size:12.5px;font-weight:700;padding:9px 10px;border-radius:9px;cursor:pointer;transition:.12s}
+.act:hover{border-color:#c7cfdb}
+.act.applied:hover{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.act.notint:hover{background:#fee2e2;border-color:#dc2626;color:#dc2626}
+.act.undo{flex:none}
+.act.undo:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+.status-badge{font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:7px}
+.status-badge.applied{background:var(--green-bg);color:var(--green)}
+.status-badge.notint{background:#fee2e2;color:#dc2626}
+.empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)}
+.empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:6px}
+.foot-note{margin-top:30px;color:var(--muted);font-size:11.5px;text-align:center;line-height:1.6}
+@media(max-width:880px){.layout{grid-template-columns:1fr}.side{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1>Backend &amp; Platform Job Board — India</h1>
+      <p>LinkedIn roles posted in the last 24h · matched to a backend / distributed-systems engineer (~4 yrs) · refreshed 14 Jun 2026</p>
+    </div>
+    <div class="stat-pills">
+      <div class="pill">📋 <b id="pillTotal">0</b> roles</div>
+      <div class="pill">🎯 <b id="pillStrong">0</b> strong matches</div>
+      <div class="pill">🟢 <b id="pillRemote">0</b> remote</div>
+      <div class="tabs" id="tabs">
+        <button class="tab on" data-view="active">Active<span id="cActive">0</span></button>
+        <button class="tab" data-view="applied">✓ Applied<span id="cApplied">0</span></button>
+        <button class="tab" data-view="notinterested">🚫 Not interested<span id="cNot">0</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="searchbar">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="search" type="text" placeholder="Search title, company, skill or location…">
+  </div>
+
+  <div class="layout">
+    <aside class="side">
+      <div class="fgroup">
+        <h3>Years of experience</h3>
+        <div style="margin-top:6px;font-size:13px">Showing fit for <span class="exp-val" id="expLabel">4</span> years</div>
+        <input type="range" id="expSlider" min="0" max="20" step="1" value="4">
+        <div class="exp-scale"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span></div>
+        <div class="toggle" id="tgExpFilter" style="margin-top:8px">
+          <span>Hide roles needing ≫ my exp</span><div class="switch"></div>
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <h3>Seniority</h3>
+        <div class="opts" id="fSeniority"></div>
+      </div>
+
+      <div class="fgroup">
+        <h3>Backend &amp; languages</h3>
+        <div class="opts" id="fLang"></div>
+      </div>
+
+      <div class="fgroup">
+        <h3>Infra &amp; platform</h3>
+        <div class="opts" id="fInfra"></div>
+      </div>
+
+      <div class="fgroup">
+        <div class="toggle" id="tgAI"><span>AI / ML-platform roles only</span><div class="switch"></div></div>
+        <div class="toggle" id="tgRemote"><span>Remote only</span><div class="switch"></div></div>
+      </div>
+
+      <button class="btn-reset" id="reset">Reset all filters</button>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <div class="count"><b id="shownCount">0</b> of <span id="totalCount">0</span> roles</div>
+        <div class="sort">
+          <button data-sort="match" class="on">★ Best match</button>
+          <button data-sort="new">🕑 Newest</button>
+        </div>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="foot-note">
+        Data pulled live from LinkedIn via the Apify <i>valig/linkedin-jobs-scraper</i> actor (India, last 24 hours).
+        Match scores &amp; experience parsing are heuristic estimates based on your profile — always read the full posting before applying.
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+const JOBS = [
+ {t:"Software Engineer 2",c:"Abnormal AI",loc:"Bengaluru",mode:"Onsite",when:"1 hour ago",iso:"2026-06-14",sen:"Senior",exp:4,expTxt:"4+ yrs",ai:true,score:90,
+  lang:["Go","Python","SQL/NoSQL"],infra:["AWS","Kubernetes","Distributed Systems","Low-latency"],
+  reason:"Backend role on AI-security platforms: <b>Go + Python</b>, distributed systems, low-latency/high-throughput, AWS &amp; K8s — and it asks for exactly ~4 yrs. Near-perfect fit.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/software-engineer-2-at-abnormal-ai-4398175828"},
+
+ {t:"Developer (Parsing Platform)",c:"Arctic Wolf",loc:"Bengaluru",mode:"Onsite",when:"1 hour ago",iso:"2026-06-14",sen:"Mid",exp:3,expTxt:"3–5 yrs",ai:false,score:86,
+  lang:["Go","Python","Java"],infra:["Kafka","Docker","Kubernetes","Distributed Systems"],
+  reason:"Real-time data-pipeline platform: <b>Go/Java + Kafka/Flink/Spark</b>, containerized microservices, high-throughput distributed systems. Strong stack &amp; experience overlap.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/developer-parsing-platform-at-arctic-wolf-4427410706"},
+
+ {t:"(IND) Senior Software Engineer",c:"Walmart Global Tech India",loc:"Bengaluru",mode:"Onsite",when:"43 minutes ago",iso:"2026-06-14",sen:"Senior",exp:6,expTxt:"6–9 yrs (min 3)",ai:true,score:88,
+  lang:["Java","Python"],infra:["Kubernetes","Microservices","GenAI","CI/CD"],
+  reason:"Backend in a <b>GenAI</b> team: Java/Python, Kubernetes, microservices, distributed scale. Heavy AI-platform overlap; min-qual is 3 yrs so reachable for you.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/ind-senior-software-engineer-at-walmart-global-tech-india-4385753873"},
+
+ {t:"Software Dev Engineer, WWGST",c:"Amazon",loc:"Bengaluru",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Mid",exp:3,expTxt:"3+ yrs",ai:false,score:84,
+  lang:["Java"],infra:["AWS","Linux","Distributed Systems"],
+  reason:"Classic SDE role: <b>Java + AWS</b>, reliable distributed solutions at Amazon scale. Experience bar (3+ yrs) lines up well with you.",
+  app:"93 applicants",url:"https://in.linkedin.com/jobs/view/software-dev-engineer-wwgst-workforce-management-at-amazon-4400902894"},
+
+ {t:"Java Backend Developer",c:"Capgemini",loc:"Bengaluru",mode:"Onsite",when:"1 hour ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:83,
+  lang:["Java","Spring Boot"],infra:["Microservices","REST","CI/CD","SQL/NoSQL"],
+  reason:"Core <b>Java + Spring Boot</b> microservices, REST APIs, performance tuning, CI/CD — directly on your primary stack.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/java-backend-developer-at-capgemini-4417495732"},
+
+ {t:"Staff Site Reliability Engineer",c:"Flipkart",loc:"Bengaluru",mode:"Onsite",when:"4 hours ago",iso:"2026-06-14",sen:"Staff",exp:null,expTxt:"Not specified",ai:false,score:82,
+  lang:["Go","Python","Java"],infra:["Cloud-native","Observability","Microservices","Distributed Systems"],
+  reason:"Platform/SRE at scale: <b>Go/Java</b>, cloud-native infra, observability (logging/metrics/tracing), reliability of microservices. Strong platform-engineering fit.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/staff-site-reliability-engineer-at-flipkart-4415634324"},
+
+ {t:"Software Engineer III",c:"Fanatics",loc:"Hyderabad",mode:"Onsite",when:"1 hour ago",iso:"2026-06-14",sen:"Mid",exp:3,expTxt:"3–5 yrs",ai:true,score:82,
+  lang:["Java","Go","Python","Node.js"],infra:["AWS","Microservices","REST/GraphQL","SQL/NoSQL"],
+  reason:"Microservices &amp; event-driven systems in <b>Java/Go</b>, REST/GraphQL, AWS, plus AI-assisted dev. Experience window matches yours.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/software-engineer-iii-at-fanatics-4358071194"},
+
+ {t:"Software Development Engineer, Prime Video Sports",c:"Prime Video & Amazon MGM Studios",loc:"Bengaluru",mode:"Onsite",when:"2 hours ago",iso:"2026-06-14",sen:"Senior",exp:3,expTxt:"3+ yrs",ai:false,score:80,
+  lang:["Java","C++"],infra:["Distributed Systems","Low-latency","Scale"],
+  reason:"Live-streaming at massive scale: distributed systems, reliability, low-latency. Java/OO focus and 3+ yr bar fit you.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/software-development-engineer-prime-video-sports-at-prime-video-amazon-mgm-studios-4388585669"},
+
+ {t:"Software Development Engineer, MENA Payments",c:"Amazon",loc:"Bengaluru",mode:"Onsite",when:"2 hours ago",iso:"2026-06-14",sen:"Senior",exp:3,expTxt:"3+ yrs",ai:false,score:80,
+  lang:["Java"],infra:["Distributed Systems","High-availability","Scale"],
+  reason:"Highly-available distributed payment backends, never-lose-an-order reliability. Strong distributed-systems match at your level.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/software-development-engineer-mena-payments-mena-payments-at-amazon-4369097824"},
+
+ {t:"SDE II, CHEX",c:"Amazon",loc:"Hyderabad",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Senior",exp:3,expTxt:"3+ yrs",ai:false,score:80,
+  lang:["Java"],infra:["Distributed Systems","Low-latency","High-availability"],
+  reason:"Core services orchestrating warehouse inventory — high-volume, low-latency, high-availability distributed systems. Right level for you.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/sde2-chex-at-amazon-4335693819"},
+
+ {t:"SDE II, Stores TA",c:"Amazon",loc:"Hyderabad",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Senior",exp:3,expTxt:"3+ yrs",ai:false,score:79,
+  lang:["Java"],infra:["Distributed Systems","Scale","High-availability"],
+  reason:"Build core distributed services from the ground up at Amazon scale. Design-patterns + reliability focus, 3+ yr bar fits.",
+  app:"146 applicants",url:"https://in.linkedin.com/jobs/view/sde-ii-stores-ta-at-amazon-4335389988"},
+
+ {t:"Senior Software Engineer, Machine Learning",c:"Roku",loc:"Bengaluru",mode:"Hybrid",when:"7 hours ago",iso:"2026-06-14",sen:"Senior",exp:5,expTxt:"5+ yrs",ai:true,score:80,
+  lang:["Python"],infra:["ML Platform","Distributed Systems","Low-latency","Inference"],
+  reason:"Build a SOTA <b>ML platform</b> — feature generation to real-time inference, distributed systems at low latency. Direct hit on your AI-platform interest.",
+  app:"156 applicants",url:"https://in.linkedin.com/jobs/view/senior-software-engineer-machine-learning-at-roku-4369656518"},
+
+ {t:"Staff Software Engineer, Distributed Data Systems",c:"Onehouse",loc:"Bengaluru / Remote-friendly",mode:"Remote",when:"33 minutes ago",iso:"2026-06-14",sen:"Staff",exp:8,expTxt:"Senior/Staff",ai:false,score:78,
+  lang:["Java","C++"],infra:["Distributed Systems","Kubernetes","Apache Hudi","Spark"],
+  reason:"Deep distributed data-systems work on Apache Hudi: <b>Java</b>, concurrency/transactions, Kubernetes, Spark. Remote-friendly; aims higher than mid-level though.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/staff-software-engineer-distributed-data-systems-india-at-onehouse-4233900590"},
+
+ {t:"(IND) Staff Software Engineer",c:"Walmart Global Tech India",loc:"Bengaluru",mode:"Onsite",when:"47 minutes ago",iso:"2026-06-14",sen:"Staff",exp:10,expTxt:"10–14 yrs",ai:true,score:77,
+  lang:["Java","Python"],infra:["Kubernetes","Microservices","GenAI","CI/CD"],
+  reason:"Same GenAI backend stack as the Senior role (Java/Python, K8s, microservices) but pitched at Staff (10–14 yrs) — a stretch on seniority.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/ind-staff-software-engineer-at-walmart-global-tech-india-4385763297"},
+
+ {t:"ML Engineer – DevOps (MLOps)",c:"Talentgigs",loc:"Hyderabad",mode:"Hybrid",when:"7 hours ago",iso:"2026-06-14",sen:"Senior",exp:5,expTxt:"5+ yrs",ai:true,score:76,
+  lang:["Python"],infra:["MLOps","Azure AI","Kubernetes","CI/CD","Terraform"],
+  reason:"Operationalising AI: <b>MLOps</b> pipelines, model deploy/rollback, AKS, IaC, LLM/RAG. Squarely on your AI-platform / model-deployment interest.",
+  app:"46 applicants",url:"https://in.linkedin.com/jobs/view/ml-engineer-devops-at-talentgigs-4427429354"},
+
+ {t:"Lead Software Engineer – Java",c:"Appian",loc:"Chennai",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Staff",exp:10,expTxt:"10+ yrs",ai:false,score:75,
+  lang:["Java","TypeScript"],infra:["Kafka","AWS","Jenkins","Distributed Systems"],
+  reason:"Excellent tech overlap — <b>Java, Kafka, Hibernate, Spring, AWS, Jenkins</b>, real-time distributed data — but it's a Lead role wanting 10+ yrs.",
+  app:"31 applicants",url:"https://in.linkedin.com/jobs/view/lead-software-engineer-java-at-appian-4387315959"},
+
+ {t:"Senior Cloud Platform Engineer",c:"Capgemini",loc:"Pune",mode:"Hybrid",when:"5 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:true,score:74,
+  lang:["Python"],infra:["AWS","Terraform","AI Agents","Bedrock/SageMaker","CI/CD"],
+  reason:"<b>AI-powered cloud platform</b>: deploy AI agents, AWS Bedrock/SageMaker, Terraform IaC, AIOps. Matches your agentic-AI infra angle, though ops-heavy.",
+  app:"113 applicants",url:"https://in.linkedin.com/jobs/view/senior-cloud-platform-engineer-at-capgemini-4425735414"},
+
+ {t:"Senior Cloud Platform Engineer",c:"Capgemini",loc:"Hyderabad",mode:"Hybrid",when:"5 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:true,score:73,
+  lang:["Python"],infra:["AWS","Terraform","AI Agents","Bedrock/SageMaker","CI/CD"],
+  reason:"Hyderabad twin of the AI cloud-platform role — AI agents on AWS, IaC, AIOps automation. Good AI-infra fit, operations-leaning.",
+  app:"148 applicants",url:"https://in.linkedin.com/jobs/view/senior-cloud-platform-engineer-at-capgemini-4425717686"},
+
+ {t:"Software Engineer – Java Backend",c:"Scoutit",loc:"Bengaluru",mode:"Onsite",when:"1 hour ago",iso:"2026-06-14",sen:"Entry",exp:null,expTxt:"Not specified",ai:false,score:72,
+  lang:["Java","Spring Boot"],infra:["Docker","Kubernetes","AWS","CI/CD"],
+  reason:"Strong stack match — <b>Core Java, Spring Boot, Docker, Kubernetes, AWS, CI/CD</b>, DSA/design patterns — though it's tagged entry-level.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/software-engineer-java-backend-at-scoutit-4427425488"},
+
+ {t:"Senior Application Developer",c:"UPS",loc:"Chennai",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Senior",exp:7,expTxt:"7–10 yrs",ai:false,score:72,
+  lang:["Java","Spring Boot"],infra:["Docker","CI/CD","REST","Microservices"],
+  reason:"<b>Java multithreading, Spring Boot, REST/SOAP, Docker, CI/CD, Git</b> — clean backend match; seniority skews to 7–10 yrs.",
+  app:"72 applicants",url:"https://in.linkedin.com/jobs/view/senior-application-developer-at-ups-4248781611"},
+
+ {t:"Sr. Full Stack Java Developer",c:"UPS",loc:"Chennai",mode:"Onsite",when:"2 hours ago",iso:"2026-06-14",sen:"Senior",exp:7,expTxt:"Senior",ai:false,score:70,
+  lang:["Java","Spring"],infra:["REST","Microservices","CI/CD","GCP"],
+  reason:"Core <b>Java/Spring</b>, REST microservices, CI/CD on GCP (GKE, Apigee). Backend-heavy despite the full-stack title.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/sr-full-stack-java-developer-at-ups-4248975220"},
+
+ {t:"Senior Software Engineer",c:"UPS",loc:"Chennai",mode:"Onsite",when:"2 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:68,
+  lang:["Java","Spring Boot"],infra:["GKE","Web Services","Azure DevOps"],
+  reason:"<b>Java, Spring Boot, web services, GKE</b> on Azure DevOps — solid backend overlap with your Java/microservices core.",
+  app:"120 applicants",url:"https://in.linkedin.com/jobs/view/senior-software-engineer-at-ups-4248969897"},
+
+ {t:"Principal Engineer, Software Engineering",c:"Saviynt",loc:"Bengaluru",mode:"Onsite",when:"13 minutes ago",iso:"2026-06-14",sen:"Staff",exp:13,expTxt:"13+ yrs",ai:true,score:68,
+  lang:["Java","Groovy"],infra:["Spring","Distributed Systems","AWS/GCP/Azure","SaaS"],
+  reason:"Identity-security SaaS platform on <b>Java/J2EE, Spring, distributed systems</b>, multi-cloud — great tech, but a Principal role at 13+ yrs.",
+  app:"64 applicants",url:"https://in.linkedin.com/jobs/view/principal-engineer-software-engineering-at-saviynt-4145507670"},
+
+ {t:"Cloud DevOps Engineer (Barclays)",c:"hackajob",loc:"Pune",mode:"Onsite",when:"7 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:68,
+  lang:["Go","Python","Bash"],infra:["Kubernetes","OpenShift","AWS EKS","Helm","OpenTelemetry"],
+  reason:"Platform engineering: <b>Go/Python, OpenShift/K8s, AWS EKS, Helm, GitOps</b>, OpenTelemetry observability — strong infra alignment.",
+  app:"66 applicants",url:"https://in.linkedin.com/jobs/view/cloud-devops-engineer-at-hackajob-4427413587"},
+
+ {t:"Williams-Sonoma — Lead Software Engineer (SRE, OMS)",c:"Williams-Sonoma, Inc.",loc:"Pune",mode:"Onsite",when:"12 minutes ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:66,
+  lang:["Java"],infra:["Microservices","Observability","Prometheus/Grafana","SRE"],
+  reason:"SRE for order-management microservices with deep <b>observability</b> (OpenSearch, Grafana, Prometheus, New Relic) — matches your reliability/observability strengths.",
+  app:"169 applicants",url:"https://in.linkedin.com/jobs/view/lead-software-engineer-sre-oms-at-williams-sonoma-inc-4298175962"},
+
+ {t:"Platform Engineer, AVP",c:"NatWest Group",loc:"Bengaluru",mode:"Onsite",when:"23 hours ago",iso:"2026-06-13",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:64,
+  lang:["Bicep"],infra:["Azure AKS","CI/CD","Terraform","Observability"],
+  reason:"Platform engineering on <b>Azure (AKS), CI/CD, Terraform/Bicep IaC</b>, cloud-native + monitoring. Good platform fit, Azure-centric.",
+  app:"112 applicants",url:"https://in.linkedin.com/jobs/view/platform-engineer-avp-at-natwest-group-4414954200"},
+
+ {t:"Full Stack Developer I",c:"FedEx",loc:"Hyderabad",mode:"Onsite",when:"4 hours ago",iso:"2026-06-14",sen:"Mid",exp:4,expTxt:"~4 yrs (Senior I)",ai:false,score:62,
+  lang:["Java"],infra:["Microservices","Architecture"],
+  reason:"Scalable, resilient microservices with code-review leadership; the 'Senior I' band maps to ~4 yrs — right on your number, though full-stack scoped.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/full-stack-developer-i-at-fedex-4400266101"},
+
+ {t:"Cloud Platform Operations Engineer",c:"Philips",loc:"Bengaluru",mode:"Hybrid",when:"4 hours ago",iso:"2026-06-14",sen:"Senior",exp:8,expTxt:"8+ yrs",ai:false,score:62,
+  lang:["Python","Bash"],infra:["AWS","Terraform","Kubernetes","Prometheus/Grafana/Datadog"],
+  reason:"AWS platform ops with <b>Terraform, CI/CD, Docker/K8s</b> and strong observability stack. Infra match, but wants 8+ yrs of ops.",
+  app:"180 applicants",url:"https://in.linkedin.com/jobs/view/cloud-platform-operations-engineer-at-philips-4427418814"},
+
+ {t:"Zscaler — Sr. Software Development Engineer",c:"Zscaler",loc:"Bengaluru",mode:"Hybrid",when:"5 hours ago",iso:"2026-06-14",sen:"Senior",exp:3,expTxt:"3+ yrs",ai:false,score:60,
+  lang:["C"],infra:["Linux","AWS/Azure/GCP","Distributed Systems","Networking"],
+  reason:"Distributed, enterprise-scale cloud-security data path — distributed-systems &amp; cloud match and a 3+ yr bar, but the language is C/networking, not Java/Go.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/sr-software-development-engineer-at-zscaler-4418616013"},
+
+ {t:"DevOps Engineer",c:"VAYUZ Technologies",loc:"Bengaluru",mode:"Onsite",when:"42 minutes ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:60,
+  lang:["Terraform"],infra:["AWS EKS","Kubernetes","CI/CD","Prometheus/Grafana"],
+  reason:"<b>AWS EKS, Kubernetes, Terraform, CI/CD</b>, GitOps and observability — solid platform/DevOps overlap with your infra toolkit.",
+  app:"33 applicants",url:"https://in.linkedin.com/jobs/view/devops-engineer-at-vayuz-technologies-4425741470"},
+
+ {t:"Azure DevOps Engineer",c:"Tata Consultancy Services",loc:"Anywhere in India",mode:"Remote",when:"2 hours ago",iso:"2026-06-14",sen:"Senior",exp:8,expTxt:"8–12 yrs",ai:false,score:58,
+  lang:["PowerShell"],infra:["Azure DevOps","Terraform","Kubernetes","CI/CD"],
+  reason:"<b>Azure DevOps, Terraform, Docker/Kubernetes, CI/CD</b> — remote (anywhere in India). Infra match but Azure-heavy and 8–12 yrs.",
+  app:"40 applicants",url:"https://in.linkedin.com/jobs/view/azure-devops-engineer-at-tata-consultancy-services-4428656070"},
+
+ {t:"Developer L3 (Go Lang)",c:"Wipro",loc:"Bengaluru",mode:"Onsite",when:"16 hours ago",iso:"2026-06-14",sen:"Mid",exp:3,expTxt:"3–5 yrs",ai:false,score:58,
+  lang:["Go"],infra:["Enterprise Platform Engineering"],
+  reason:"Enterprise platform engineering in <b>Go</b> at a 3–5 yr band — matches your Go skills and level, though the JD is generic.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/developer-l3-at-wipro-4428396105"},
+
+ {t:"Backend Developer (Serverless)",c:"Townty Sports Inc.",loc:"Remote — India",mode:"Remote",when:"12 hours ago",iso:"2026-06-14",sen:"Mid",exp:3,expTxt:"3–4 yrs",ai:false,score:58,
+  lang:["Node.js","JavaScript"],infra:["AWS Lambda","SQS","Elasticsearch","CI/CD"],
+  reason:"100% remote, event-driven AWS serverless (Lambda, SQS/DLQ, DynamoDB) at 3–4 yrs — your exact experience window, but Node.js rather than Java/Go.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/backend-developer-serverless-technologies-at-townty-sports-inc-4427173886"},
+
+ {t:"DevOps Engineer — Azure & AKS",c:"Kansoft",loc:"Kolkata",mode:"Onsite",when:"16 hours ago",iso:"2026-06-14",sen:"Senior",exp:5,expTxt:"5–8 yrs",ai:false,score:56,
+  lang:["Terraform"],infra:["Azure AKS","Kubernetes","Helm","Prometheus/Grafana"],
+  reason:"Enterprise <b>AKS, Terraform/Bicep, Helm, ACR</b> plus observability — good Kubernetes/IaC overlap, Azure-focused.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/devops-engineer-azure-kubernetes-service-at-kansoft-4428395143"},
+
+ {t:"Cloud Infra DevOps Engineer",c:"Tata Consultancy Services",loc:"Hyderabad",mode:"Onsite",when:"4 hours ago",iso:"2026-06-14",sen:"Senior",exp:8,expTxt:"8–12 yrs",ai:false,score:54,
+  lang:["Terraform"],infra:["AWS/Azure/GCP","CI/CD","IaC"],
+  reason:"Multi-cloud infra with <b>Terraform IaC, CI/CD</b> and reliability focus. Infra-relevant but 8–12 yrs and work-from-office.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/cloud-infra-devops-engineer-8-12-years-bangalore-pune-hyderabad-bbsr-chennai-kochi-at-tata-consultancy-services-4427437078"},
+
+ {t:"Backend Software Development Engineer",c:"Scoutit",loc:"Bengaluru",mode:"Onsite",when:"34 minutes ago",iso:"2026-06-14",sen:"Entry",exp:null,expTxt:"Not specified",ai:false,score:55,
+  lang:["Backend"],infra:["Scalable Systems"],
+  reason:"Generic backend SDE building scalable systems — backend-aligned but the JD is light on a specific stack and tagged entry-level.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/backend-software-development-engineer-at-scoutit-4427420628"},
+
+ {t:"Backend Developer",c:"Prognova",loc:"Coimbatore",mode:"Onsite",when:"9 hours ago",iso:"2026-06-14",sen:"Senior",exp:5,expTxt:"5+ yrs",ai:false,score:52,
+  lang:["Node.js","PHP","TypeScript"],infra:["Microservices","Docker","Jenkins","Redis"],
+  reason:"Microservices, Docker, Jenkins, Redis at scale — architecture overlap, but the core languages (Node/PHP) sit outside your strengths.",
+  app:"87 applicants",url:"https://in.linkedin.com/jobs/view/backend-developer-at-prognova-4428610805"},
+
+ {t:"Software Engineer",c:"Cargill",loc:"Bengaluru",mode:"Onsite",when:"6 hours ago",iso:"2026-06-13",sen:"Mid",exp:2,expTxt:"2–3 yrs",ai:false,score:50,
+  lang:["General"],infra:["Automation","CI/CD"],
+  reason:"General software-engineering role (clean code, tests, deployment automation). Below your level and light on a backend specialism.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/software-engineer-at-cargill-4375295151"},
+
+ {t:"Senior Software Engineer (SDK)",c:"Scoutit",loc:"Remote — India",mode:"Remote",when:"7 hours ago",iso:"2026-06-14",sen:"Entry",exp:null,expTxt:"Not specified",ai:false,score:50,
+  lang:["C/C++","Java","Python"],infra:["Azure/AWS/GCP","Microservices","JDBC/ODBC"],
+  reason:"SDK / DB-driver engineering across many languages with cloud microservices — broad match, but entry-tagged and driver-specialised.",
+  app:"45 applicants",url:"https://in.linkedin.com/jobs/view/senior-software-engineer-at-scoutit-4427433314"},
+
+ {t:"DevOps Engineer (Fintech)",c:"Sosuv Consulting",loc:"Bengaluru",mode:"Onsite",when:"18 hours ago",iso:"2026-06-13",sen:"Senior",exp:3,expTxt:"3–5 yrs",ai:false,score:48,
+  lang:["Python","Bash"],infra:["CI/CD","Linux","Configuration Mgmt"],
+  reason:"CI/CD, config management and L2 support at 3–5 yrs — your experience band, but lighter on cloud-native/Kubernetes depth.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/devops-engineer-at-sosuv-consulting-4425391459"},
+
+ {t:"Senior Software Engineer – Frontend (Full Stack)",c:"Cognite",loc:"Bengaluru",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Senior",exp:6,expTxt:"6–10 yrs",ai:false,score:45,
+  lang:["TypeScript","Kotlin/Java"],infra:["React","CI/CD"],
+  reason:"90% React frontend with only light JVM backend exposure — strong company, but the focus is opposite to your backend strengths.",
+  app:"37 applicants",url:"https://in.linkedin.com/jobs/view/senior-software-engineer-frontend-full-stack-at-cognite-4388198869"},
+
+ {t:"Azure Data Engineer",c:"Talentgigs",loc:"Bengaluru",mode:"Onsite",when:"7 hours ago",iso:"2026-06-14",sen:"Mid",exp:null,expTxt:"Not specified",ai:false,score:40,
+  lang:["Python","PySpark","SQL"],infra:["Azure Databricks","Synapse","ETL","CI/CD"],
+  reason:"Data engineering on Azure (Databricks/Synapse, PySpark). Some platform/CI-CD overlap but a data-pipeline specialism, not backend services.",
+  app:"148 applicants",url:"https://in.linkedin.com/jobs/view/azure-data-engineer-at-talentgigs-4427435121"},
+
+ {t:"Pure Storage — Member of Technical Staff",c:"Pure Storage",loc:"Bengaluru",mode:"Onsite",when:"18 minutes ago",iso:"2026-06-14",sen:"Staff",exp:18,expTxt:"18+ yrs",ai:false,score:40,
+  lang:["C","C++"],infra:["Distributed Systems","Linux Kernel","Networking"],
+  reason:"Deep networking/distributed storage on Linux kernel &amp; device drivers — impressive systems work, but pitched at 18+ yrs, well above your level.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/member-of-technical-staff-at-pure-storage-4387727495"},
+
+ {t:"Data Engineer (Founding)",c:"Trident Automobiles",loc:"Bengaluru",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Mid",exp:4,expTxt:"4+ yrs",ai:false,score:34,
+  lang:["Python","SQL"],infra:["BigQuery","Data Pipelines"],
+  reason:"Founding data-platform build (BigQuery, pipelines) at a 4-yr bar that matches you — but it's data engineering, not backend/distributed services.",
+  app:"108 applicants",url:"https://in.linkedin.com/jobs/view/data-engineer-at-trident-automobiles-4427430311"},
+
+ {t:"Infrastructure Engineer — Wintel & Azure",c:"Ralph Lauren",loc:"Bengaluru",mode:"Onsite",when:"13 hours ago",iso:"2026-06-14",sen:"Mid",exp:5,expTxt:"5+ yrs",ai:false,score:22,
+  lang:["PowerShell"],infra:["Azure","Nutanix/VMware","Windows Server"],
+  reason:"Wintel / VMware / Nutanix systems administration with some Azure — largely outside your software-engineering and cloud-native focus.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/infrastructure-engineer-wintel-azure-administration-at-ralph-lauren-4411398818"},
+
+ {t:"Full-Stack Developer",c:"SuperProcure",loc:"Kolkata",mode:"Onsite",when:"10 minutes ago",iso:"2026-06-14",sen:"Entry",exp:0,expTxt:"Fresher–1 yr",ai:false,score:36,
+  lang:["Node.js","React"],infra:["Docker","Postgres"],
+  reason:"AI-assisted full-stack build (Node/React/Postgres) aimed at freshers — well below your experience and not backend-specialised.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/full-stack-developer-at-superprocure-4427424034"},
+
+ {t:"React Developer",c:"Scoutit",loc:"Remote — India",mode:"Remote",when:"7 hours ago",iso:"2026-06-14",sen:"Entry",exp:null,expTxt:"Not specified",ai:false,score:20,
+  lang:["React",".NET","JavaScript"],infra:["Dynamics CRM"],
+  reason:"Frontend React + .NET / Dynamics CRM work — outside your backend/distributed-systems track.",
+  app:"60 applicants",url:"https://in.linkedin.com/jobs/view/react-developer-at-scoutit-4427425460"},
+
+ {t:"Full Stack Engineer Intern",c:"AI Startup Impact",loc:"Remote — India",mode:"Remote",when:"13 hours ago",iso:"2026-06-14",sen:"Entry",exp:0,expTxt:"Internship",ai:false,score:15,
+  lang:["JavaScript","React","Node.js"],infra:["APIs","Databases"],
+  reason:"Remote full-stack internship — far below your level; included only as a remote-AI-startup data point.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/full-stack-engineer-intern-remote-%E2%80%93-india-at-ai-startup-impact-4427423040"},
+
+ {t:"Software Developer 2 (Java Microservices)",c:"Oracle",loc:"Bengaluru",mode:"Onsite",when:"3 minutes ago",iso:"2026-06-14",sen:"Mid",exp:2,expTxt:"2+ yrs",ai:false,score:82,
+  lang:["Java","Spring Boot"],infra:["Microservices","Docker","Kubernetes","CI/CD","OCI/AWS"],
+  reason:"Scalable <b>Java + Spring Boot microservices</b> with Docker/Kubernetes, CI/CD and cloud (OCI/AWS/Azure/GCP), multithreading/concurrency — squarely on your core stack; 2+ yr bar is comfortable.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/software-developer-2-at-oracle-4425738819"},
+
+ {t:"Senior Software Engineer",c:"Teradata",loc:"Hyderabad",mode:"Onsite",when:"1 minute ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:72,
+  lang:["Java","C++"],infra:["Distributed Systems","Data/Analytics Engine","SQL"],
+  reason:"Core engineering on a large-scale distributed data/analytics platform — strong distributed-systems alignment with your background (verify the exact stack in the posting).",
+  app:"Just posted",url:"https://in.linkedin.com/jobs/view/senior-software-engineer-at-teradata-4427437389"},
+
+ {t:"Software Engineer II",c:"Zendesk",loc:"Pune",mode:"Hybrid",when:"7 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:70,
+  lang:["Java","Go"],infra:["Microservices","AWS","Distributed Systems"],
+  reason:"Product-company backend at a mid-senior bar — microservices at scale on the cloud. Good fit for your service-engineering profile (confirm languages in JD).",
+  app:"—",url:"https://in.linkedin.com/jobs/view/software-engineer-ii-at-zendesk-4413654424"},
+
+ {t:"Staff Software Engineer",c:"Okta",loc:"Bengaluru",mode:"Onsite",when:"12 hours ago",iso:"2026-06-14",sen:"Staff",exp:null,expTxt:"Staff level",ai:false,score:68,
+  lang:["Java"],infra:["Distributed Systems","SaaS","Cloud"],
+  reason:"Identity-security SaaS platform engineering — Java + distributed cloud systems. Tech aligns well, though pitched at Staff seniority.",
+  app:"—",url:"https://in.linkedin.com/jobs/view/staff-software-engineer-at-okta-4369521456"},
+
+ {t:"Software Engineer III",c:"hackajob",loc:"Bengaluru",mode:"Onsite",when:"7 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:64,
+  lang:["Java","Python"],infra:["Microservices","Cloud","APIs"],
+  reason:"Mid-senior backend SE role via hackajob — microservices/API engineering. Reasonable fit; check the client's specific stack in the posting.",
+  app:"—",url:"https://in.linkedin.com/jobs/view/software-engineer-iii-at-hackajob-4427435151"},
+
+ {t:"Sr. Platform Engineer II — Hosting",c:"Smarsh",loc:"Bengaluru",mode:"Onsite",when:"1 hour ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:63,
+  lang:["Go","Python"],infra:["Platform Engineering","Cloud","Kubernetes","CI/CD"],
+  reason:"Hosting/platform engineering for a SaaS product — cloud infra, Kubernetes and CI/CD. Solid platform-engineering match with your infra toolkit.",
+  app:"—",url:"https://in.linkedin.com/jobs/view/sr-platform-engineer-ii-hosting-team-at-smarsh-4378372026"},
+
+ {t:"Early Career Software Engineer",c:"Halliburton (Landmark)",loc:"Bengaluru",mode:"Onsite",when:"5 hours ago",iso:"2026-06-14",sen:"Mid",exp:0,expTxt:"0–5 yrs",ai:true,score:60,
+  lang:["Java","Python","C#"],infra:["Docker","Kubernetes","Terraform","Azure/AWS"],
+  reason:"Cloud-native SaaS platforms with <b>Java, Docker/Kubernetes, Terraform/Argo</b>, AWS/Azure and AI-assisted analytics teams; 0–5 yr band fits, though some teams are frontend.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/early-career-software-engineer-at-halliburton-4427410994"},
+
+ {t:"Platform Engineer (Azure, IaC & DevOps)",c:"Husky Technologies",loc:"Chennai",mode:"Onsite",when:"2 hours ago",iso:"2026-06-14",sen:"Senior",exp:null,expTxt:"Not specified",ai:false,score:58,
+  lang:["Terraform"],infra:["Azure","IaC","CI/CD","DevOps"],
+  reason:"Platform engineering on <b>Azure with IaC and DevOps</b> pipelines — infra overlap with your CI/CD &amp; cloud experience, Azure-centric.",
+  app:"Be among the first 25 applicants",url:"https://in.linkedin.com/jobs/view/platform-engineer-azure-iac-devops-husky-guindy-chennai-at-husky-technologies-4427448028"},
+
+ {t:"Software Developer 2",c:"Oracle",loc:"Hyderabad",mode:"Onsite",when:"6 hours ago",iso:"2026-06-13",sen:"Mid",exp:null,expTxt:"Not specified",ai:false,score:55,
+  lang:["Java"],infra:["Databases","Application Development"],
+  reason:"General Oracle software-development role (IC2) across databases/apps/tools — backend-adjacent but the JD is light on a specific modern stack.",
+  app:"153 applicants",url:"https://in.linkedin.com/jobs/view/software-developer-2-at-oracle-4414386668"},
+
+ {t:"Software Engineer (Backend)",c:"Scoutit",loc:"India",mode:"Onsite",when:"7 hours ago",iso:"2026-06-14",sen:"Entry",exp:null,expTxt:"Not specified",ai:false,score:55,
+  lang:["General"],infra:["Microservices","APIs","Cloud","SQL/NoSQL"],
+  reason:"Enterprise backend services, APIs &amp; microservices with cloud deployment — backend-aligned but a generic, entry-tagged listing.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/software-engineer-at-scoutit-4427431361"},
+
+ {t:"Java + React Developer",c:"Infosys",loc:"Bengaluru",mode:"Onsite",when:"3 hours ago",iso:"2026-06-14",sen:"Mid",exp:null,expTxt:"Not specified",ai:false,score:52,
+  lang:["Java","React"],infra:["Architecture","SDLC"],
+  reason:"Java services with a React frontend in a delivery role — partial backend match, but full-stack/consulting-scoped.",
+  app:"Over 200 applicants",url:"https://in.linkedin.com/jobs/view/java%2B-react-at-infosys-4417574476"},
+
+ {t:"Cloud Engineer",c:"HRS Group",loc:"Chandigarh",mode:"Onsite",when:"6 hours ago",iso:"2026-06-14",sen:"Mid",exp:null,expTxt:"Not specified",ai:false,score:48,
+  lang:["Python"],infra:["Cloud","CI/CD","Infrastructure"],
+  reason:"General cloud-engineering role — some infra/CI-CD overlap, but lighter on the distributed-systems and Java/Go core you bring.",
+  app:"—",url:"https://in.linkedin.com/jobs/view/cloud-engineer-at-hrs-group-4418634213"},
+
+ {t:"Full Stack Developer (Junior)",c:"InsuranceDekho",loc:"Goa",mode:"Hybrid",when:"8 hours ago",iso:"2026-06-14",sen:"Entry",exp:1,expTxt:"9 mo–1.5 yrs",ai:false,score:32,
+  lang:[".NET","Java","Angular"],infra:["SQL"],
+  reason:"Junior full-stack role (.NET/Java/Angular/SQL) well below your level and outside your backend/distributed-systems focus.",
+  app:"171 applicants",url:"https://in.linkedin.com/jobs/view/full-stack-developer-at-insurancedekho-4427425400"}
+];
+
+// ---------- build filter option sets ----------
+const SEN_ORDER=["Entry","Mid","Senior","Staff"];
+const langSet=new Set(), infraSet=new Set();
+JOBS.forEach(j=>{j.lang.forEach(s=>langSet.add(s));j.infra.forEach(s=>infraSet.add(s));});
+const TOP_LANG=["Java","Spring Boot","Go","Scala","Python","C++","Node.js","TypeScript"].filter(x=>langSet.has(x));
+const TOP_INFRA=["Kubernetes","Docker","AWS","Kafka","CI/CD","Terraform","Microservices","Distributed Systems","Observability","ML Platform","MLOps","Redis"].filter(x=>infraSet.has(x));
+
+const state={q:"",sen:new Set(),lang:new Set(),infra:new Set(),ai:false,remote:false,exp:4,expFilter:false,sort:"match",view:"active"};
+
+// ---------- applied / not-interested tracking (persists across refreshes via localStorage, keyed by job URL) ----------
+const SKEY="jobStatusV1";
+let STATUS={};
+try{STATUS=JSON.parse(localStorage.getItem(SKEY)||"{}");}catch(e){STATUS={};}
+function act(url,val){
+  if(val) STATUS[url]=val; else delete STATUS[url];
+  try{localStorage.setItem(SKEY,JSON.stringify(STATUS));}catch(e){}
+  render();
+}
+function searchHay(j){return (j.t+" "+j.c+" "+j.loc+" "+j.sen+" "+j.lang.join(" ")+" "+j.infra.join(" ")).toLowerCase();}
+function actionsHtml(j){
+  if(state.view==="active"){
+    return '<button class="act applied" onclick="act(\''+j.url+'\',\'applied\')">✓ Applied</button>'
+         + '<button class="act notint" onclick="act(\''+j.url+'\',\'notinterested\')">🚫 Not interested</button>';
+  }
+  const s=STATUS[j.url];
+  return '<span class="status-badge '+(s==="applied"?"applied":"notint")+'">'+(s==="applied"?"✓ Applied":"🚫 Not interested")+'</span>'
+       + '<button class="act undo" onclick="act(\''+j.url+'\',\'\')">↶ Move back to Active</button>';
+}
+function emptyMsg(){return state.view==="applied"?"No jobs marked Applied yet":state.view==="notinterested"?"Nothing marked Not interested":"No roles match these filters";}
+function emptySub(){return state.view==="active"?"Try widening seniority, clearing skills, or moving the experience slider.":"Use the ✓ Applied / 🚫 Not interested buttons on a card to file it here. Filed jobs stay hidden from Active even after the board refreshes.";}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  state.view=t.dataset.view;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+  t.classList.add("on");
+  render();
+});
+
+function chipEl(label,group){
+  const d=document.createElement("div");d.className="opt";d.textContent=label;
+  d.onclick=()=>{state[group].has(label)?state[group].delete(label):state[group].add(label);d.classList.toggle("on");render();};
+  return d;
+}
+SEN_ORDER.forEach(s=>fSeniority.appendChild(chipEl(s,"sen")));
+TOP_LANG.forEach(s=>fLang.appendChild(chipEl(s,"lang")));
+TOP_INFRA.forEach(s=>fInfra.appendChild(chipEl(s,"infra")));
+
+search.oninput=e=>{state.q=e.target.value.toLowerCase().trim();render();};
+expSlider.oninput=e=>{state.exp=+e.target.value;expLabel.textContent=state.exp;render();};
+tgAI.onclick=()=>{state.ai=!state.ai;tgAI.classList.toggle("on");render();};
+tgRemote.onclick=()=>{state.remote=!state.remote;tgRemote.classList.toggle("on");render();};
+tgExpFilter.onclick=()=>{state.expFilter=!state.expFilter;tgExpFilter.classList.toggle("on");render();};
+document.querySelectorAll(".sort button").forEach(b=>b.onclick=()=>{
+  state.sort=b.dataset.sort;document.querySelectorAll(".sort button").forEach(x=>x.classList.remove("on"));b.classList.add("on");render();
+});
+reset.onclick=()=>{
+  state.q="";state.sen.clear();state.lang.clear();state.infra.clear();state.ai=false;state.remote=false;state.exp=4;state.expFilter=false;state.sort="match";
+  search.value="";expSlider.value=4;expLabel.textContent=4;
+  document.querySelectorAll(".opt.on").forEach(x=>x.classList.remove("on"));
+  tgAI.classList.remove("on");tgRemote.classList.remove("on");tgExpFilter.classList.remove("on");
+  document.querySelectorAll(".sort button").forEach(x=>x.classList.remove("on"));
+  document.querySelector('.sort button[data-sort="match"]').classList.add("on");
+  render();
+};
+
+function scoreClass(s){return s>=80?"s-green":s>=65?"s-blue":s>=50?"s-amber":"s-slate";}
+function modeClass(m){return m==="Remote"?"remote":m==="Hybrid"?"hybrid":"onsite";}
+function expBonus(j){ // proximity of required exp to chosen slider value
+  if(j.exp==null) return 4;
+  const d=Math.abs(j.exp-state.exp);
+  return Math.max(0,12-3*d);
+}
+function isExpFit(j){return j.exp!=null && Math.abs(j.exp-state.exp)<=1.5;}
+
+function passes(j){
+  if(state.ai && !j.ai) return false;
+  if(state.remote && j.mode!=="Remote") return false;
+  if(state.sen.size && !state.sen.has(j.sen)) return false;
+  if(state.lang.size && !j.lang.some(s=>state.lang.has(s))) return false;
+  if(state.infra.size && !j.infra.some(s=>state.infra.has(s))) return false;
+  if(state.expFilter && j.exp!=null && j.exp-state.exp>3) return false;
+  if(state.q){
+    const hay=(j.t+" "+j.c+" "+j.loc+" "+j.sen+" "+j.lang.join(" ")+" "+j.infra.join(" ")).toLowerCase();
+    if(!hay.includes(state.q)) return false;
+  }
+  return true;
+}
+
+function render(){
+  let list = state.view==="active"
+    ? JOBS.filter(j=>!STATUS[j.url] && passes(j))
+    : JOBS.filter(j=> STATUS[j.url]===state.view && (!state.q || searchHay(j).includes(state.q)));
+  if(state.sort==="new"){
+    list.sort((a,b)=> (b.iso.localeCompare(a.iso)) || (b.score-a.score));
+  }else{
+    list.sort((a,b)=> ((b.score+expBonus(b))-(a.score+expBonus(a))));
+  }
+  grid.innerHTML="";
+  if(!list.length){
+    grid.innerHTML='<div class="empty"><b>'+emptyMsg()+'</b>'+emptySub()+'</div>';
+  }
+  list.forEach(j=>{
+    const fit=isExpFit(j);
+    const card=document.createElement("div");
+    card.className="card"+(fit?" expfit":"");
+    card.innerHTML=`
+      <div class="card-head">
+        <div><h2>${j.t}</h2><p class="company">${j.c}</p></div>
+        <div class="score ${scoreClass(j.score)}"><b>${j.score}</b><small>match</small></div>
+      </div>
+      <div class="meta">
+        <span class="tag loc">📍 ${j.loc}</span>
+        <span class="tag ${modeClass(j.mode)}">${j.mode}</span>
+        <span class="tag sen">${j.sen}</span>
+        <span class="tag exp">🧭 ${j.expTxt}</span>
+        ${j.ai?'<span class="tag ai">✨ AI / ML platform</span>':''}
+        <span class="tag date">🕑 ${j.when}</span>
+      </div>
+      <div class="skills-row">
+        <div class="lbl">Backend &amp; languages</div>
+        <div class="chips">${j.lang.map(s=>`<span class="chip lang">${s}</span>`).join("")}</div>
+      </div>
+      <div class="skills-row">
+        <div class="lbl">Infra &amp; platform</div>
+        <div class="chips">${j.infra.map(s=>`<span class="chip infra">${s}</span>`).join("")}</div>
+      </div>
+      <div class="reason">${j.reason}</div>
+      <div class="expfit-flag">✓ Closely fits your ~${state.exp}-yr experience</div>
+      <div class="card-actions">${actionsHtml(j)}</div>
+      <div class="card-foot">
+        <span class="applicants">${j.app}</span>
+        <a class="apply" href="${j.url}" target="_blank" rel="noopener">View posting →</a>
+      </div>`;
+    grid.appendChild(card);
+  });
+  shownCount.textContent=list.length;
+  totalCount.textContent = state.view==="active" ? JOBS.filter(j=>!STATUS[j.url]).length : list.length;
+  updateChrome();
+}
+
+function updateChrome(){
+  const active=JOBS.filter(j=>!STATUS[j.url]);
+  pillTotal.textContent=active.length;
+  pillStrong.textContent=active.filter(j=>j.score>=80).length;
+  pillRemote.textContent=active.filter(j=>j.mode==="Remote").length;
+  cActive.textContent=active.length;
+  cApplied.textContent=JOBS.filter(j=>STATUS[j.url]==="applied").length;
+  cNot.textContent=JOBS.filter(j=>STATUS[j.url]==="notinterested").length;
+}
+render();
+</script>
+</body>
+</html>
