@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
-import Link from "next/link";
 import type { Job, RefreshResponse } from "@/lib/types";
 
 type View = "active" | "applied" | "notinterested";
@@ -56,7 +54,6 @@ export default function JobBoard({
   initialJobs: Job[];
   initialRefreshedAt: string | null;
 }) {
-  const { data: session } = useSession();
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(initialRefreshedAt);
   const [loading, setLoading] = useState(false);
@@ -312,37 +309,14 @@ export default function JobBoard({
               <>↻ Refresh</>
             )}
           </button>
-
-          {session?.user && (
-            <Link
-              href="/profile"
-              title="Your profile & Apify key"
-              className="ml-1 flex items-center gap-2 rounded-full border border-line bg-panel py-1 pl-1 pr-3 text-xs font-semibold shadow-card transition hover:border-[#c7cfdb]"
-            >
-              {session.user.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={session.user.image}
-                  alt=""
-                  className="h-6 w-6 rounded-full"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <span className="h-6 w-6 rounded-full bg-chip" />
-              )}
-              <span className="max-w-[120px] truncate">
-                {session.user.name || session.user.email}
-              </span>
-            </Link>
-          )}
         </div>
       </header>
 
       {/* ---------- error toast ---------- */}
       {error && (
-        <div className="mb-3 flex items-start justify-between gap-3 rounded-[10px] border border-[#fecaca] bg-[#fee2e2] px-[14px] py-[10px] text-[12.5px] font-semibold text-[#b91c1c]">
+        <div className="mb-3 flex items-start justify-between gap-3 rounded-[10px] border border-line bg-red-soft px-[14px] py-[10px] text-[12.5px] font-semibold text-red-ink">
           <span>⚠️ {error}</span>
-          <button onClick={() => setError(null)} className="font-bold text-[#b91c1c]">
+          <button onClick={() => setError(null)} className="font-bold text-red-ink">
             ✕
           </button>
         </div>
@@ -444,7 +418,7 @@ export default function JobBoard({
 
           <button
             onClick={reset}
-            className="mt-[14px] w-full rounded-[9px] border border-line bg-chip px-2 py-[9px] text-[12.5px] font-semibold text-sslate hover:border-[#c7cfdb]"
+            className="mt-[14px] w-full rounded-[9px] border border-line bg-chip px-2 py-[9px] text-[12.5px] font-semibold text-sslate hover:border-brand"
           >
             Reset all filters
           </button>
@@ -528,7 +502,7 @@ function Pill({
     <button
       onClick={onClick}
       title={title}
-      className={`rounded-full border px-[13px] py-[7px] text-xs font-semibold shadow-card transition hover:border-[#c7cfdb] ${
+      className={`rounded-full border px-[13px] py-[7px] text-xs font-semibold shadow-card transition hover:border-brand ${
         on ? "border-brand bg-brand text-white" : "border-line bg-panel"
       }`}
     >
@@ -652,7 +626,7 @@ function JobCard({
 }) {
   return (
     <div
-      className={`relative flex flex-col rounded-[14px] border bg-panel p-4 shadow-card transition hover:-translate-y-px hover:border-[#c7cfdb] hover:shadow-cardhover ${
+      className={`relative flex flex-col rounded-[14px] border bg-panel p-4 shadow-card transition hover:-translate-y-px hover:border-brand hover:shadow-cardhover ${
         fit ? "border-brand ring-2 ring-brand-soft" : "border-line"
       }`}
     >
@@ -729,7 +703,7 @@ function JobCard({
             </button>
             <button
               onClick={() => onAct(j, "notinterested")}
-              className="min-w-[118px] flex-1 rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-[#dc2626] hover:bg-[#fee2e2] hover:text-[#dc2626]"
+              className="min-w-[118px] flex-1 rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-red-ink hover:bg-red-soft hover:text-red-ink"
             >
               🚫 Not interested
             </button>
@@ -738,7 +712,7 @@ function JobCard({
           <>
             <span
               className={`rounded-[7px] px-[11px] py-[5px] text-[11.5px] font-bold ${
-                status === "applied" ? "bg-sgreen-bg text-sgreen" : "bg-[#fee2e2] text-[#dc2626]"
+                status === "applied" ? "bg-sgreen-bg text-sgreen" : "bg-red-soft text-red-ink"
               }`}
             >
               {status === "applied" ? "✓ Applied" : "🚫 Not interested"}
