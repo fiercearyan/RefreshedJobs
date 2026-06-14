@@ -31,9 +31,40 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-panel shadow-card">
       <div className="mx-auto flex max-w-[1280px] items-center gap-3 px-[18px] py-2.5">
-        {/* left: profile */}
+        {/* left: logo */}
         <div className="flex flex-1 justify-start">
-          {session?.user ? (
+          <Link href="/" aria-label="OpenRoles home" className="flex items-center">
+            <Logo size={30} />
+          </Link>
+        </div>
+
+        {/* center: wordmark */}
+        <Link href="/" className="text-[18px] font-extrabold tracking-[-0.02em]">
+          Open<span className="text-green">Roles</span>
+        </Link>
+
+        {/* right: theme toggle + profile */}
+        <div className="flex flex-1 items-center justify-end gap-3">
+          <button
+            onClick={toggleTheme}
+            title={light ? "Switch to dark" : "Switch to light"}
+            aria-label="Toggle theme"
+            className="grid h-8 w-8 place-items-center rounded-full border border-line bg-panel-2 text-muted transition hover:border-brand hover:text-ink"
+          >
+            {light ? (
+              // moon
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
+              </svg>
+            ) : (
+              // sun
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+              </svg>
+            )}
+          </button>
+          {session?.user && (
             <Link
               href="/profile"
               title="Your profile & Apify key"
@@ -56,40 +87,7 @@ export default function Navbar() {
                 {session.user.name || session.user.email}
               </span>
             </Link>
-          ) : (
-            <span />
           )}
-        </div>
-
-        {/* center: wordmark */}
-        <Link href="/" className="text-[18px] font-extrabold tracking-[-0.02em]">
-          Open<span className="text-green">Roles</span>
-        </Link>
-
-        {/* right: theme toggle + logo */}
-        <div className="flex flex-1 items-center justify-end gap-3">
-          <button
-            onClick={toggleTheme}
-            title={light ? "Switch to dark" : "Switch to light"}
-            aria-label="Toggle theme"
-            className="grid h-8 w-8 place-items-center rounded-full border border-line bg-panel-2 text-muted transition hover:border-brand hover:text-ink"
-          >
-            {light ? (
-              // moon
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
-              </svg>
-            ) : (
-              // sun
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-              </svg>
-            )}
-          </button>
-          <Link href="/" aria-label="OpenRoles home" className="flex items-center">
-            <Logo size={30} />
-          </Link>
         </div>
       </div>
     </header>
