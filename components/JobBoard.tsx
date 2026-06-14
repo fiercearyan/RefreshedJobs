@@ -7,7 +7,9 @@ type View = "active" | "applied" | "notinterested";
 type Sort = "match" | "new";
 type Status = Record<string, "applied" | "notinterested">;
 
-const SKEY = "jobStatusV1";
+const SKEY = "jobStatusV1"; // url -> "applied" | "notinterested"
+const JKEY = "jobsCacheV1"; // last successful pull { jobs, refreshedAt }
+const FKEY = "filedJobsV1"; // url -> Job, for jobs marked applied/not-interested
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
 const LANG_PREF = ["Java", "Spring Boot", "Go", "Scala", "Python", "C++", "Node.js", "TypeScript"];
 const INFRA_PREF = [
@@ -74,23 +76,53 @@ export default function JobBoard({
 
   // applied / not-interested, persisted by stable job URL
   const [status, setStatus] = useState<Status>({});
+  // archive of filed (applied / not-interested) jobs, so they survive a new pull
+  const [archive, setArchive] = useState<Record<string, Job>>({});
+
+  // On mount, restore everything from localStorage so a browser refresh does NOT
+  // hit Apify: the last pull, the filed-job archive, and the status map.
   useEffect(() => {
     try {
       setStatus(JSON.parse(localStorage.getItem(SKEY) || "{}"));
     } catch {
-      setStatus({});
+      /* ignore */
+    }
+    try {
+      setArchive(JSON.parse(localStorage.getItem(FKEY) || "{}"));
+    } catch {
+      /* ignore */
+    }
+    try {
+      const cached = JSON.parse(localStorage.getItem(JKEY) || "null");
+      if (cached && Array.isArray(cached.jobs) && cached.jobs.length) {
+        setJobs(cached.jobs);
+        setRefreshedAt(cached.refreshedAt ?? null);
+      }
+    } catch {
+      /* ignore */
     }
   }, []);
 
-  function setAct(url: string, val: "" | "applied" | "notinterested") {
+  function setAct(job: Job, val: "" | "applied" | "notinterested") {
     setStatus((prev) => {
       const next = { ...prev };
-      if (val) next[url] = val;
-      else delete next[url];
+      if (val) next[job.url] = val;
+      else delete next[job.url];
       try {
         localStorage.setItem(SKEY, JSON.stringify(next));
       } catch {
         /* ignore quota / private-mode errors */
+      }
+      return next;
+    });
+    setArchive((prev) => {
+      const next = { ...prev };
+      if (val) next[job.url] = job;
+      else delete next[job.url];
+      try {
+        localStorage.setItem(FKEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
       }
       return next;
     });
@@ -108,6 +140,15 @@ export default function JobBoard({
       if (data.jobs) {
         setJobs(data.jobs);
         setRefreshedAt(data.refreshedAt);
+        // Persist so a browser refresh restores these without calling Apify again.
+        try {
+          localStorage.setItem(
+            JKEY,
+            JSON.stringify({ jobs: data.jobs, refreshedAt: data.refreshedAt }),
+          );
+        } catch {
+          /* ignore quota errors */
+        }
       }
       if (data.error) setError(data.error);
     } catch (e) {
@@ -162,10 +203,19 @@ export default function JobBoard({
   }
 
   const list = useMemo(() => {
-    let l =
-      view === "active"
-        ? jobs.filter((j) => !status[j.url] && passes(j))
-        : jobs.filter((j) => status[j.url] === view && (!q || searchHay(j).includes(q)));
+    let l: Job[];
+    if (view === "active") {
+      l = jobs.filter((j) => !status[j.url] && passes(j));
+    } else {
+      // Union current pull + archived filed jobs (fresh copy wins) so filed jobs
+      // always appear in their tab, even after a refresh that no longer returns them.
+      const byUrl = new Map<string, Job>();
+      Object.values(archive).forEach((j) => byUrl.set(j.url, j));
+      jobs.forEach((j) => byUrl.set(j.url, j));
+      l = Array.from(byUrl.values()).filter(
+        (j) => status[j.url] === view && (!q || searchHay(j).includes(q)),
+      );
+    }
     if (sort === "new") {
       l = [...l].sort((a, b) => b.iso.localeCompare(a.iso) || b.score - a.score);
     } else {
@@ -173,7 +223,7 @@ export default function JobBoard({
     }
     return l;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, status, view, q, sen, lang, infra, ai, remote, strong, exp, expFilter, sort]);
+  }, [jobs, archive, status, view, q, sen, lang, infra, ai, remote, strong, exp, expFilter, sort]);
 
   const active = useMemo(() => jobs.filter((j) => !status[j.url]), [jobs, status]);
   const counts = {
@@ -181,8 +231,8 @@ export default function JobBoard({
     strong: active.filter((j) => j.score >= 80).length,
     remote: active.filter((j) => j.mode === "Remote").length,
     active: active.length,
-    applied: jobs.filter((j) => status[j.url] === "applied").length,
-    not: jobs.filter((j) => status[j.url] === "notinterested").length,
+    applied: Object.values(status).filter((v) => v === "applied").length,
+    not: Object.values(status).filter((v) => v === "notinterested").length,
   };
 
   function reset() {
@@ -573,7 +623,7 @@ function JobCard({
   exp: number;
   view: View;
   status?: "applied" | "notinterested";
-  onAct: (url: string, val: "" | "applied" | "notinterested") => void;
+  onAct: (job: Job, val: "" | "applied" | "notinterested") => void;
 }) {
   return (
     <div
@@ -647,13 +697,13 @@ function JobCard({
         {view === "active" ? (
           <>
             <button
-              onClick={() => onAct(j.url, "applied")}
+              onClick={() => onAct(j, "applied")}
               className="min-w-[118px] flex-1 rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-sgreen hover:bg-sgreen-bg hover:text-sgreen"
             >
               ✓ Applied
             </button>
             <button
-              onClick={() => onAct(j.url, "notinterested")}
+              onClick={() => onAct(j, "notinterested")}
               className="min-w-[118px] flex-1 rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-[#dc2626] hover:bg-[#fee2e2] hover:text-[#dc2626]"
             >
               🚫 Not interested
@@ -669,7 +719,7 @@ function JobCard({
               {status === "applied" ? "✓ Applied" : "🚫 Not interested"}
             </span>
             <button
-              onClick={() => onAct(j.url, "")}
+              onClick={() => onAct(j, "")}
               className="flex-none rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-brand hover:bg-brand-soft hover:text-brand"
             >
               ↶ Move back to Active
