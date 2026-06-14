@@ -96,11 +96,12 @@ everything fails but a cached snapshot exists, the cached data is returned with 
 
 ## Optional upgrades
 
-- **Vercel Cron pre-warm** — `vercel.json` hits `/api/refresh` once daily at `30 1 * * *` UTC
-  (7:00 AM IST) to keep the cache warm.
-  > Note: the Vercel **Hobby** plan only allows **one cron run per day**, so the schedule is set to a
-  > single daily run. On **Pro** you can run it more often — e.g. `30 1,13 * * *` for 7:00 AM &
-  > 7:00 PM IST.
+- **Vercel Cron pre-warm** — currently **disabled** (`"crons": []` in `vercel.json`) so it doesn't
+  spend Apify credits automatically; refresh manually with the button instead. To re-enable a daily
+  pre-warm, add this to `crons` (Hobby allows one run/day; Pro can do more, e.g. `30 1,13 * * *`):
+  ```json
+  { "path": "/api/refresh", "schedule": "30 1 * * *" }
+  ```
 - **Secret token on `/api/refresh`** — set `REFRESH_SECRET` and the endpoint requires
   `?token=<value>` (or an `x-refresh-token` header), so it can't be hammered publicly. Leave it
   unset to disable. (If you enable it, the cron URL and the client fetch must include the token.)

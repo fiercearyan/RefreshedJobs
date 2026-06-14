@@ -66,6 +66,7 @@ export default function JobBoard({
   const [infra, setInfra] = useState<Set<string>>(new Set());
   const [ai, setAi] = useState(false);
   const [remote, setRemote] = useState(false);
+  const [strong, setStrong] = useState(false);
   const [exp, setExp] = useState(CANDIDATE_EXP);
   const [expFilter, setExpFilter] = useState(false);
   const [sort, setSort] = useState<Sort>("match");
@@ -151,6 +152,7 @@ export default function JobBoard({
   function passes(j: Job) {
     if (ai && !j.ai) return false;
     if (remote && j.mode !== "Remote") return false;
+    if (strong && j.score < 80) return false;
     if (sen.size && !sen.has(j.sen)) return false;
     if (lang.size && !j.lang.some((s) => lang.has(s))) return false;
     if (infra.size && !j.infra.some((s) => infra.has(s))) return false;
@@ -171,7 +173,7 @@ export default function JobBoard({
     }
     return l;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, status, view, q, sen, lang, infra, ai, remote, exp, expFilter, sort]);
+  }, [jobs, status, view, q, sen, lang, infra, ai, remote, strong, exp, expFilter, sort]);
 
   const active = useMemo(() => jobs.filter((j) => !status[j.url]), [jobs, status]);
   const counts = {
@@ -190,9 +192,24 @@ export default function JobBoard({
     setInfra(new Set());
     setAi(false);
     setRemote(false);
+    setStrong(false);
     setExp(CANDIDATE_EXP);
     setExpFilter(false);
     setSort("match");
+  }
+
+  // Stat-pill actions — clicking a pill jumps to the Active set and applies its filter.
+  function showAllRoles() {
+    reset();
+    setView("active");
+  }
+  function toggleStrong() {
+    setView("active");
+    setStrong((v) => !v);
+  }
+  function toggleRemotePill() {
+    setView("active");
+    setRemote((v) => !v);
   }
 
   return (
@@ -209,15 +226,15 @@ export default function JobBoard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="rounded-full border border-line bg-panel px-[13px] py-[7px] text-xs font-semibold shadow-card">
+          <Pill onClick={showAllRoles} title="Show all active roles">
             📋 <b className="text-brand">{counts.total}</b> roles
-          </div>
-          <div className="rounded-full border border-line bg-panel px-[13px] py-[7px] text-xs font-semibold shadow-card">
-            🎯 <b className="text-brand">{counts.strong}</b> strong matches
-          </div>
-          <div className="rounded-full border border-line bg-panel px-[13px] py-[7px] text-xs font-semibold shadow-card">
-            🟢 <b className="text-brand">{counts.remote}</b> remote
-          </div>
+          </Pill>
+          <Pill on={strong} onClick={toggleStrong} title="Filter to strong matches (score ≥ 80)">
+            🎯 <b className={strong ? "text-white" : "text-brand"}>{counts.strong}</b> strong matches
+          </Pill>
+          <Pill on={remote} onClick={toggleRemotePill} title="Filter to remote roles">
+            🟢 <b className={remote ? "text-white" : "text-brand"}>{counts.remote}</b> remote
+          </Pill>
           <div className="ml-1 flex gap-[6px]">
             <Tab on={view === "active"} onClick={() => setView("active")}>
               Active<TabNum on={view === "active"}>{counts.active}</TabNum>
@@ -420,6 +437,30 @@ export default function JobBoard({
 }
 
 /* ----------------------- small presentational helpers ----------------------- */
+
+function Pill({
+  on = false,
+  onClick,
+  title,
+  children,
+}: {
+  on?: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`rounded-full border px-[13px] py-[7px] text-xs font-semibold shadow-card transition hover:border-[#c7cfdb] ${
+        on ? "border-brand bg-brand text-white" : "border-line bg-panel"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 function Tab({
   on,
