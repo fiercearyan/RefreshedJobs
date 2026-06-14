@@ -2,27 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Theme tokens. Dark is the default (:root); .light overrides.
+   ============================================================ */
 :root {
+  color-scheme: dark;
+
+  --bg: #070b14;
+  --panel: #0f1524;
+  --panel-2: #141c2e;
+  --ink: #e8edf6;
+  --muted: #8a94a8;
+  --line: #202a42;
+  --brand: #6366f1;
+  --brand-dark: #4f46e5;
+  --brand-soft: rgba(99, 102, 241, 0.18);
+  --chip: #1a2236;
+  --chip-ink: #c2cbe0;
+  --green: #34d399;
+  --switch-off: #2a3550;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --ink-green: #4ade80;   --green-bg: rgba(34, 197, 94, 0.15);
+  --ink-blue: #60a5fa;    --blue-bg: rgba(59, 130, 246, 0.15);
+  --ink-amber: #fbbf24;   --amber-bg: rgba(245, 158, 11, 0.16);
+  --ink-slate: #cbd5e1;   --slate-bg: rgba(148, 163, 184, 0.15);
+  --ink-teal: #2dd4bf;    --teal-bg: rgba(20, 184, 166, 0.15);
+  --ink-violet: #c4b5fd;  --violet-bg: rgba(139, 92, 246, 0.16);
+  --ink-pink: #f472b6;    --pink-bg: rgba(236, 72, 153, 0.16);
+  --ink-cyan: #67e8f9;    --cyan-bg: rgba(34, 211, 238, 0.14);
+  --ink-indigo: #a5b4fc;  --indigo-bg: rgba(99, 102, 241, 0.16);
+  --ink-red: #f87171;     --red-bg: rgba(239, 68, 68, 0.16);
+  --reason-bg: rgba(255, 255, 255, 0.03);
+  --reason-ink: #aab4c8;
+}
+
+html.light {
   color-scheme: light;
+
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --panel-2: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --brand: #4f46e5;
+  --brand-dark: #4338ca;
+  --brand-soft: #eef2ff;
+  --chip: #f1f5f9;
+  --chip-ink: #475569;
+  --green: #16a34a;
+  --switch-off: #cbd5e1;
+
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 14px rgba(15, 23, 42, 0.05);
+  --shadow-hover: 0 6px 22px rgba(15, 23, 42, 0.09);
+
+  --ink-green: #15803d;   --green-bg: #dcfce7;
+  --ink-blue: #2563eb;    --blue-bg: #dbeafe;
+  --ink-amber: #b45309;   --amber-bg: #fef3c7;
+  --ink-slate: #475569;   --slate-bg: #f1f5f9;
+  --ink-teal: #0f766e;    --teal-bg: #f0fdfa;
+  --ink-violet: #6d28d9;  --violet-bg: #ede9fe;
+  --ink-pink: #be185d;    --pink-bg: #fce7f3;
+  --ink-cyan: #0e7490;    --cyan-bg: #ecfeff;
+  --ink-indigo: #4338ca;  --indigo-bg: #eef2ff;
+  --ink-red: #dc2626;     --red-bg: #fee2e2;
+  --reason-bg: #fafbfc;
+  --reason-ink: #475569;
 }
 
 html,
 body {
-  background: #f5f7fa;
-  color: #0f172a;
+  background: var(--bg);
+  color: var(--ink);
   font-size: 14px;
   line-height: 1.45;
 }
 
-/* Component classes for parts that are awkward in pure utilities
-   (pseudo-elements, range input, score buckets, skill chips). */
 @layer components {
   /* ---- pill toggle switch ---- */
   .switch {
     position: relative;
     width: 40px;
     height: 22px;
-    background: #cbd5e1;
+    background: var(--switch-off);
     border-radius: 999px;
     transition: 0.15s;
     flex: none;
@@ -40,7 +105,7 @@ body {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   }
   .toggle.on .switch {
-    background: #4f46e5;
+    background: var(--brand);
   }
   .toggle.on .switch::after {
     left: 20px;
@@ -50,7 +115,7 @@ body {
   input[type="range"] {
     width: 100%;
     margin: 12px 0 2px;
-    accent-color: #4f46e5;
+    accent-color: var(--brand);
   }
 
   /* ---- filter option chips ---- */
@@ -61,37 +126,25 @@ body {
     font-weight: 600;
     padding: 6px 11px;
     border-radius: 999px;
-    border: 1px solid #e2e8f0;
-    background: #f1f5f9;
-    color: #475569;
+    border: 1px solid var(--line);
+    background: var(--chip);
+    color: var(--chip-ink);
     transition: 0.12s;
   }
   .opt:hover {
-    border-color: #c7cfdb;
+    border-color: var(--brand);
   }
   .opt.on {
-    background: #4f46e5;
-    border-color: #4f46e5;
+    background: var(--brand);
+    border-color: var(--brand);
     color: #fff;
   }
 
   /* ---- score badge buckets ---- */
-  .s-green {
-    background: #dcfce7;
-    color: #16a34a;
-  }
-  .s-blue {
-    background: #dbeafe;
-    color: #2563eb;
-  }
-  .s-amber {
-    background: #fef3c7;
-    color: #d97706;
-  }
-  .s-slate {
-    background: #f1f5f9;
-    color: #475569;
-  }
+  .s-green { background: var(--green-bg); color: var(--ink-green); }
+  .s-blue { background: var(--blue-bg); color: var(--ink-blue); }
+  .s-amber { background: var(--amber-bg); color: var(--ink-amber); }
+  .s-slate { background: var(--slate-bg); color: var(--ink-slate); }
 
   /* ---- meta tags ---- */
   .tag {
@@ -99,45 +152,20 @@ body {
     font-weight: 600;
     padding: 4px 9px;
     border-radius: 7px;
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--chip);
+    color: var(--chip-ink);
     display: inline-flex;
     align-items: center;
     gap: 4px;
   }
-  .tag.loc {
-    background: #f0fdfa;
-    color: #0f766e;
-  }
-  .tag.remote {
-    background: #dcfce7;
-    color: #15803d;
-  }
-  .tag.hybrid {
-    background: #fef3c7;
-    color: #b45309;
-  }
-  .tag.onsite {
-    background: #f1f5f9;
-    color: #475569;
-  }
-  .tag.sen {
-    background: #ede9fe;
-    color: #6d28d9;
-  }
-  .tag.exp {
-    background: #e0f2fe;
-    color: #0369a1;
-  }
-  .tag.ai {
-    background: #fce7f3;
-    color: #be185d;
-  }
-  .tag.date {
-    background: transparent;
-    color: #64748b;
-    padding-left: 0;
-  }
+  .tag.loc { background: var(--teal-bg); color: var(--ink-teal); }
+  .tag.remote { background: var(--green-bg); color: var(--ink-green); }
+  .tag.hybrid { background: var(--amber-bg); color: var(--ink-amber); }
+  .tag.onsite { background: var(--slate-bg); color: var(--ink-slate); }
+  .tag.sen { background: var(--violet-bg); color: var(--ink-violet); }
+  .tag.exp { background: var(--blue-bg); color: var(--ink-blue); }
+  .tag.ai { background: var(--pink-bg); color: var(--ink-pink); }
+  .tag.date { background: transparent; color: var(--muted); padding-left: 0; }
 
   /* ---- skill chips ---- */
   .chip {
@@ -146,26 +174,18 @@ body {
     padding: 3px 8px;
     border-radius: 6px;
   }
-  .chip.lang {
-    background: #eef2ff;
-    color: #4338ca;
-  }
-  .chip.infra {
-    background: #ecfeff;
-    color: #0e7490;
-  }
+  .chip.lang { background: var(--indigo-bg); color: var(--ink-indigo); }
+  .chip.infra { background: var(--cyan-bg); color: var(--ink-cyan); }
 
   /* ---- match-reason callout ---- */
   .reason {
     font-size: 12.5px;
-    color: #475569;
-    background: #fafbfc;
-    border: 1px solid #e2e8f0;
-    border-left: 3px solid #4f46e5;
+    color: var(--reason-ink);
+    background: var(--reason-bg);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--brand);
     border-radius: 0 8px 8px 0;
     padding: 9px 11px;
   }
-  .reason b {
-    color: #0f172a;
-  }
+  .reason b { color: var(--ink); }
 }

@@ -98,7 +98,7 @@ export default function ProfilePage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+91 90000 00000"
-            className="w-full rounded-[9px] border border-line bg-white px-3 py-[9px] text-[14px] outline-none focus:border-brand"
+            className="w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[9px] text-[14px] text-ink outline-none focus:border-brand"
           />
           <button
             onClick={() => save({ phone }, "Phone saved.")}
@@ -143,7 +143,7 @@ export default function ProfilePage() {
             onChange={(e) => setApifyKey(e.target.value)}
             placeholder="apify_api_..."
             type="password"
-            className="w-full rounded-[9px] border border-line bg-white px-3 py-[9px] text-[14px] outline-none focus:border-brand"
+            className="w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[9px] text-[14px] text-ink outline-none focus:border-brand"
           />
           <button
             onClick={() => save({ apifyKey }, "Apify key saved.")}

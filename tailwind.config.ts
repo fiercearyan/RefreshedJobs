@@ -1,39 +1,41 @@
 import type { Config } from "tailwindcss";
 
-// Design tokens ported verbatim from the job-board.html prototype.
+// Colors are driven by CSS variables (see app/globals.css) so the same classes
+// work in both dark (default) and light themes.
 const config: Config = {
-  content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-  ],
+  darkMode: "class",
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        appbg: "#f5f7fa",
-        panel: "#ffffff",
-        ink: "#0f172a",
-        muted: "#64748b",
-        line: "#e2e8f0",
-        brand: "#4f46e5",
-        "brand-dark": "#4338ca",
-        "brand-soft": "#eef2ff",
-        chip: "#f1f5f9",
-        sgreen: "#16a34a",
-        "sgreen-bg": "#dcfce7",
-        sblue: "#2563eb",
-        "sblue-bg": "#dbeafe",
-        samber: "#d97706",
-        "samber-bg": "#fef3c7",
-        sslate: "#475569",
-        "sslate-bg": "#f1f5f9",
+        appbg: "var(--bg)",
+        panel: "var(--panel)",
+        "panel-2": "var(--panel-2)",
+        ink: "var(--ink)",
+        muted: "var(--muted)",
+        line: "var(--line)",
+        brand: "var(--brand)",
+        "brand-dark": "var(--brand-dark)",
+        "brand-soft": "var(--brand-soft)",
+        chip: "var(--chip)",
+        "chip-ink": "var(--chip-ink)",
+        green: "var(--green)",
+        sgreen: "var(--ink-green)",
+        "sgreen-bg": "var(--green-bg)",
+        sblue: "var(--ink-blue)",
+        "sblue-bg": "var(--blue-bg)",
+        samber: "var(--ink-amber)",
+        "samber-bg": "var(--amber-bg)",
+        sslate: "var(--muted)",
+        "sslate-bg": "var(--slate-bg)",
+        "red-soft": "var(--red-bg)",
+        "red-ink": "var(--ink-red)",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(15,23,42,.06),0 4px 14px rgba(15,23,42,.05)",
-        cardhover: "0 6px 22px rgba(15,23,42,.09)",
+        card: "var(--shadow)",
+        cardhover: "var(--shadow-hover)",
       },
-      maxWidth: {
-        wrap: "1280px",
-      },
+      maxWidth: { wrap: "1280px" },
       fontFamily: {
         sans: [
           "-apple-system",
