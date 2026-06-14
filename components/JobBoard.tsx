@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 import type { Job, RefreshResponse } from "@/lib/types";
 
 type View = "active" | "applied" | "notinterested";
 type Sort = "match" | "new";
 type Status = Record<string, "applied" | "notinterested">;
 
-const SKEY = "jobStatusV1"; // url -> "applied" | "notinterested"
-const JKEY = "jobsCacheV1"; // last successful pull { jobs, refreshedAt }
-const FKEY = "filedJobsV1"; // url -> Job, for jobs marked applied/not-interested
+const JKEY = "jobsCacheV1"; // last successful pull { jobs, refreshedAt } (per-device cache)
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
 const LANG_PREF = ["Java", "Spring Boot", "Go", "Scala", "Python", "C++", "Node.js", "TypeScript"];
 const INFRA_PREF = [
@@ -56,6 +56,7 @@ export default function JobBoard({
   initialJobs: Job[];
   initialRefreshedAt: string | null;
 }) {
+  const { data: session } = useSession();
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(initialRefreshedAt);
   const [loading, setLoading] = useState(false);
@@ -79,19 +80,10 @@ export default function JobBoard({
   // archive of filed (applied / not-interested) jobs, so they survive a new pull
   const [archive, setArchive] = useState<Record<string, Job>>({});
 
-  // On mount, restore everything from localStorage so a browser refresh does NOT
-  // hit Apify: the last pull, the filed-job archive, and the status map.
+  // On mount: restore the last pull from the per-device localStorage cache (so a
+  // browser refresh doesn't re-hit Apify), and load Applied/Not-interested from
+  // the user's account (synced across devices via MongoDB).
   useEffect(() => {
-    try {
-      setStatus(JSON.parse(localStorage.getItem(SKEY) || "{}"));
-    } catch {
-      /* ignore */
-    }
-    try {
-      setArchive(JSON.parse(localStorage.getItem(FKEY) || "{}"));
-    } catch {
-      /* ignore */
-    }
     try {
       const cached = JSON.parse(localStorage.getItem(JKEY) || "null");
       if (cached && Array.isArray(cached.jobs) && cached.jobs.length) {
@@ -101,30 +93,40 @@ export default function JobBoard({
     } catch {
       /* ignore */
     }
+    fetch("/api/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) {
+          setStatus(data.status || {});
+          setArchive(data.archive || {});
+        }
+      })
+      .catch(() => {
+        /* ignore — board still works, just no saved statuses */
+      });
   }, []);
 
   function setAct(job: Job, val: "" | "applied" | "notinterested") {
+    // Optimistic local update…
     setStatus((prev) => {
       const next = { ...prev };
       if (val) next[job.url] = val;
       else delete next[job.url];
-      try {
-        localStorage.setItem(SKEY, JSON.stringify(next));
-      } catch {
-        /* ignore quota / private-mode errors */
-      }
       return next;
     });
     setArchive((prev) => {
       const next = { ...prev };
       if (val) next[job.url] = job;
       else delete next[job.url];
-      try {
-        localStorage.setItem(FKEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
       return next;
+    });
+    // …then persist to the account (synced across devices).
+    fetch("/api/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: job.url, status: val, job }),
+    }).catch(() => {
+      /* ignore network errors; local state already updated */
     });
   }
 
@@ -310,6 +312,29 @@ export default function JobBoard({
               <>↻ Refresh</>
             )}
           </button>
+
+          {session?.user && (
+            <Link
+              href="/profile"
+              title="Your profile & Apify key"
+              className="ml-1 flex items-center gap-2 rounded-full border border-line bg-panel py-1 pl-1 pr-3 text-xs font-semibold shadow-card transition hover:border-[#c7cfdb]"
+            >
+              {session.user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={session.user.image}
+                  alt=""
+                  className="h-6 w-6 rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="h-6 w-6 rounded-full bg-chip" />
+              )}
+              <span className="max-w-[120px] truncate">
+                {session.user.name || session.user.email}
+              </span>
+            </Link>
+          )}
         </div>
       </header>
 

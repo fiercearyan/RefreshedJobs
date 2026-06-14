@@ -7,58 +7,110 @@ the Apify **`valig/linkedin-jobs-scraper`** actor, so your Apify token never rea
 
 ## Features
 
+- **Google sign-in (required)** — the whole app is private; users authenticate with Google via
+  NextAuth. Users are stored in MongoDB.
+- **Per-user Apify keys** — each user can save their own Apify key (encrypted at rest) in their
+  profile; their refreshes use it. If they haven't set one, refresh falls back to the shared server
+  `APIFY_TOKEN`.
 - **Refresh button** — pulls fresh LinkedIn roles on demand via `POST /api/refresh`.
 - **Server-side match scoring** — each role gets a 0–100 score, skill chips, seniority, parsed
   years-of-experience, work-mode inference, an AI/ML-platform flag, and a one-sentence reason.
 - **Filters & sort** — experience slider, seniority, backend/language, infra/platform, AI-only,
   remote-only, plus Best-match / Newest sorting (best-match blends score with closeness to your
-  experience; roles within ~1.5 yrs get a highlight ring).
+  experience; roles within ~1.5 yrs get a highlight ring). The header stat pills (roles / strong /
+  remote) are clickable filters.
 - **Applied / Not-interested tracking** — per-card buttons with Active / Applied / Not-interested
-  tabs. Persisted in `localStorage` under `jobStatusV1`, keyed by job URL so selections survive
+  tabs, **saved to the user's account in MongoDB** so selections sync across devices and survive
   refreshes.
-- **Cache so the page isn't blank** — the latest pull is cached in memory and served on first load.
+- **Per-device job cache** — the last pull is cached in `localStorage`, so a browser refresh
+  restores it instantly without spending Apify credits; only the Refresh button re-pulls.
 
 ## Tech stack
 
-Next.js 14 (App Router) · TypeScript · React 18 · Tailwind CSS · deployed on Vercel, sourced from GitHub.
+Next.js 14 (App Router) · TypeScript · React 18 · Tailwind CSS · NextAuth (Google) · MongoDB ·
+deployed on Vercel, sourced from GitHub.
 
 ## Project structure
 
 ```
 app/
-  api/refresh/route.ts   POST/GET — runs Apify 4× in parallel, merges, scores, caches
-  layout.tsx
+  api/auth/[...nextauth]/route.ts  NextAuth (Google) handler
+  api/refresh/route.ts   POST/GET — auth-gated; runs Apify 4× in parallel, merges, scores, caches
+  api/profile/route.ts   GET/POST — read/update phone + encrypted Apify key
+  api/status/route.ts    GET/POST — per-user Applied/Not-interested (MongoDB)
+  signin/page.tsx        Google sign-in screen
+  profile/page.tsx       profile: phone, Apify key, sign out
+  layout.tsx             wraps app in the NextAuth SessionProvider
   page.tsx               server component — serves cached snapshot to the client board
   globals.css            Tailwind + ported component styles
 components/
-  JobBoard.tsx           the full UI (header, filters, cards, refresh, tracking)
+  JobBoard.tsx           the full UI (header, filters, cards, refresh, tracking, user menu)
+  Providers.tsx          client SessionProvider wrapper
 lib/
   apify.ts               Apify run-sync-get-dataset-items client (4 searches)
   normalize.ts           map raw items → UI jobs, dedupe by URL, collapse repost spam
   scoring.ts             work-mode/seniority/exp inference, skill extraction, match score
   cache.ts               in-memory snapshot cache
+  auth.ts                NextAuth options (Google provider, Mongo adapter, JWT)
+  mongodb.ts             shared MongoClient promise
+  users.ts               user-doc helpers (profile, Apify key, job status)
+  crypto.ts              AES-256-GCM encrypt/decrypt for the Apify key
   types.ts               shared types
+middleware.ts            protects all pages behind sign-in
 vercel.json              Cron pre-warm
-.env.example             APIFY_TOKEN (+ optional REFRESH_SECRET)
+.env.example             all env vars (Apify, Google, Mongo, secrets)
+```
+
+## Environment variables
+
+Copy the example file and fill every value: `cp .env.example .env.local` (git-ignored — never commit).
+
+| Var                  | What it's for                                                              |
+| -------------------- | -------------------------------------------------------------------------- |
+| `APIFY_TOKEN`        | Shared fallback Apify token (used when a user has no key of their own)      |
+| `GOOGLE_CLIENT_ID`   | Google OAuth client ID                                                      |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret                                               |
+| `NEXTAUTH_URL`       | App base URL (`http://localhost:3000` locally; your Vercel URL in prod)     |
+| `NEXTAUTH_SECRET`    | Signs session JWTs — `openssl rand -base64 32`                              |
+| `MONGODB_URI`        | MongoDB Atlas connection string (include a db name, e.g. `/jobboard`)       |
+| `ENCRYPTION_SECRET`  | Encrypts each user's Apify key at rest — `openssl rand -hex 32`             |
+| `REFRESH_SECRET`     | Optional — adds a token gate on `/api/refresh`                              |
+
+### 1. MongoDB Atlas (free)
+
+1. Create a free **M0** cluster at <https://www.mongodb.com/atlas/database>.
+2. **Database Access** → add a database user (username + password).
+3. **Network Access** → add IP `0.0.0.0/0` (Vercel's IPs are dynamic, so allow all).
+4. **Connect → Drivers** → copy the connection string and put it in `MONGODB_URI`, inserting your
+   password and a database name, e.g. `...mongodb.net/jobboard?retryWrites=true&w=majority`.
+
+### 2. Google OAuth (free)
+
+1. In <https://console.cloud.google.com/> create/select a project.
+2. **APIs & Services → OAuth consent screen** → External → add yourself as a test user.
+3. **Credentials → Create credentials → OAuth client ID → Web application**.
+4. **Authorized redirect URIs** — add both:
+   - `http://localhost:3000/api/auth/callback/google`
+   - `https://<your-vercel-domain>/api/auth/callback/google`
+5. Copy the client ID/secret into `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+
+### 3. Generate the secrets
+
+```bash
+openssl rand -base64 32   # NEXTAUTH_SECRET
+openssl rand -hex 32      # ENCRYPTION_SECRET
 ```
 
 ## Local setup
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Add your Apify token. Copy the example env file and fill it in:
-   ```bash
-   cp .env.example .env.local
-   ```
-   Then set `APIFY_TOKEN` in `.env.local` (get it from
-   <https://console.apify.com/account/integrations>). `.env.local` is git-ignored — never commit it.
-3. Run the dev server:
-   ```bash
-   npm run dev
-   ```
-   Open <http://localhost:3000> and click **Refresh** to pull live jobs.
+```bash
+npm install
+cp .env.example .env.local   # then fill in all values (see above)
+npm run dev
+```
+
+Open <http://localhost:3000> → you'll be sent to **/signin** → sign in with Google. Then add your
+own Apify key under **Profile** (optional) and hit **Refresh**.
 
 > On a fresh start the board is empty (the cache is cold) — hit **Refresh** to populate it.
 > Each refresh runs the Apify actor four times, which can take 30–60s.
@@ -90,9 +142,13 @@ everything fails but a cached snapshot exists, the cached data is returned with 
    git push -u origin main
    ```
 2. **Import on Vercel** — New Project → import the repo. The framework auto-detects as Next.js.
-3. **Add the env var** — Vercel → Settings → Environment Variables → add `APIFY_TOKEN`
-   (and optionally `REFRESH_SECRET`) for **Production** and **Preview**.
-4. **Deploy**, then open the live URL and confirm the **Refresh** button returns jobs.
+3. **Add env vars** — Vercel → Settings → Environment Variables, for **Production** and **Preview**:
+   `APIFY_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `MONGODB_URI`,
+   `ENCRYPTION_SECRET` (and optional `REFRESH_SECRET`). Set `NEXTAUTH_URL` to your deployment URL
+   (e.g. `https://your-app.vercel.app`).
+4. **Update Google OAuth** — add `https://<your-vercel-domain>/api/auth/callback/google` to the
+   Authorized redirect URIs (step 2 above), and confirm `0.0.0.0/0` is allowed in MongoDB Atlas.
+5. **Deploy**, open the live URL, sign in with Google, and confirm **Refresh** returns jobs.
 
 ## Optional upgrades
 
@@ -105,10 +161,11 @@ everything fails but a cached snapshot exists, the cached data is returned with 
 - **Secret token on `/api/refresh`** — set `REFRESH_SECRET` and the endpoint requires
   `?token=<value>` (or an `x-refresh-token` header), so it can't be hammered publicly. Leave it
   unset to disable. (If you enable it, the cron URL and the client fetch must include the token.)
-- **Vercel KV for persistence** — the in-memory cache (`lib/cache.ts`) doesn't survive cold starts.
-  Swap it for [Vercel KV](https://vercel.com/docs/storage/vercel-kv) to persist the latest jobs
-  snapshot across instances, and optionally store the Applied/Not-interested map there (keyed by a
-  user/device id) for cross-device sync instead of `localStorage`.
+- **Persistent jobs snapshot** — Applied/Not-interested already persists per user in MongoDB. The
+  shared in-memory job cache (`lib/cache.ts`) still doesn't survive cold starts; if you want the
+  *latest pull* to persist server-side too, store it in MongoDB or [Vercel KV](https://vercel.com/docs/storage/vercel-kv)
+  instead of the module variable. (The client also keeps a per-device `localStorage` copy, so a
+  browser refresh already restores the last pull without re-hitting Apify.)
 
 ## Notes
 

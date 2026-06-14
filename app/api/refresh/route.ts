@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getUserByEmail } from "@/lib/users";
+import { decrypt } from "@/lib/crypto";
 import { runAllSearches } from "@/lib/apify";
 import { normalizeJobs } from "@/lib/normalize";
 import { getCachedJobs, setCachedJobs } from "@/lib/cache";
@@ -21,11 +25,31 @@ async function handleRefresh(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const token = process.env.APIFY_TOKEN;
+  // Require a signed-in user.
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) {
+    return NextResponse.json({ error: "Please sign in to refresh." }, { status: 401 });
+  }
+
+  // Prefer the user's own Apify key; fall back to the shared server token.
+  let token: string | undefined;
+  try {
+    const user = await getUserByEmail(email);
+    if (user?.apifyKeyEnc) token = decrypt(user.apifyKeyEnc);
+  } catch {
+    /* fall back below */
+  }
+  if (!token) token = process.env.APIFY_TOKEN;
+
   if (!token) {
     return NextResponse.json(
-      { error: "APIFY_TOKEN is not configured on the server." },
-      { status: 500 },
+      {
+        error:
+          "No Apify key available. Add your own key in your profile to refresh.",
+        code: "NO_APIFY_KEY",
+      },
+      { status: 400 },
     );
   }
 

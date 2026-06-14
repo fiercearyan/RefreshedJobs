@@ -1,0 +1,53 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getUserByEmail, users } from "@/lib/users";
+import type { Job } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+// Return the user's saved statuses as two maps the client can use directly:
+//   status:  { [url]: "applied" | "notinterested" }
+//   archive: { [url]: Job }
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await getUserByEmail(email);
+  const status: Record<string, "applied" | "notinterested"> = {};
+  const archive: Record<string, Job> = {};
+  for (const e of user?.jobStatus ?? []) {
+    status[e.url] = e.status;
+    archive[e.url] = e.job;
+  }
+  return NextResponse.json({ status, archive });
+}
+
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: { url?: string; status?: "" | "applied" | "notinterested"; job?: Job };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  }
+  const url = (body.url ?? "").trim();
+  if (!url) return NextResponse.json({ error: "Missing url" }, { status: 400 });
+
+  const col = await users();
+  // Remove any existing entry for this URL first.
+  await col.updateOne({ email }, { $pull: { jobStatus: { url } } }, { upsert: true });
+  // Then add the new one (unless clearing).
+  if (body.status && body.job) {
+    await col.updateOne(
+      { email },
+      { $push: { jobStatus: { url, status: body.status, job: body.job } } },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}
