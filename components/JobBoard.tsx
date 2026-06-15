@@ -130,6 +130,22 @@ export default function JobBoard({
       else delete next[job.url];
       return next;
     });
+    // Un-filing (Move back to Active / Unsave): make sure the job is in the
+    // visible pool so it shows in Active — it may not be in the latest pull
+    // (e.g. it's older than the freshness window), in which case it would
+    // otherwise vanish. Persist to the cache so it survives a browser refresh too.
+    if (!val) {
+      setJobs((prev) => {
+        if (prev.some((x) => x.url === job.url)) return prev;
+        const next = [job, ...prev];
+        try {
+          localStorage.setItem(JKEY, JSON.stringify({ jobs: next, refreshedAt }));
+        } catch {
+          /* ignore quota errors */
+        }
+        return next;
+      });
+    }
     // …then persist to the account (synced across devices).
     fetch("/api/status", {
       method: "POST",
@@ -770,6 +786,14 @@ function JobCard({
             >
               {status === "applied" ? "✓ Applied" : status === "saved" ? "🔖 Saved" : "🚫 Not interested"}
             </span>
+            {status === "saved" && (
+              <button
+                onClick={() => onAct(j, "applied")}
+                className="flex-none rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-sgreen hover:bg-sgreen-bg hover:text-sgreen"
+              >
+                ✓ Applied
+              </button>
+            )}
             <button
               onClick={() => onAct(j, "")}
               className="flex-none rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-brand hover:bg-brand-soft hover:text-brand"
