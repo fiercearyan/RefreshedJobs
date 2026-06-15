@@ -28,8 +28,7 @@ function SignInInner() {
           Open<span className="text-green">Roles</span>
         </h1>
         <p className="mx-auto mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-muted">
-          Live LinkedIn backend &amp; platform roles, scored against your profile. Sign in to get
-          started.
+          Live LinkedIn jobs, scored and ranked for your profile. Sign in to get started.
         </p>
 
         {error && (
