@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getUserByEmail } from "@/lib/users";
+import { getUserByEmail, users } from "@/lib/users";
 import { decrypt } from "@/lib/crypto";
 import { runSearches } from "@/lib/apify";
 import { normalizeJobs } from "@/lib/normalize";
@@ -67,6 +67,15 @@ async function handleRefresh(req: Request): Promise<NextResponse> {
       config,
     };
     setCachedJobs(payload);
+    // Persist the snapshot to the user's account so all their devices share it.
+    try {
+      await (await users()).updateOne(
+        { email },
+        { $set: { jobsSnapshot: { jobs, refreshedAt: payload.refreshedAt } } },
+      );
+    } catch {
+      /* non-fatal: in-memory cache + client still work */
+    }
     return NextResponse.json(payload);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

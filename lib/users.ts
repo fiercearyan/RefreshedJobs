@@ -23,6 +23,9 @@ export interface UserDoc {
   }[];
   // What this user fetches from Apify on refresh (location / freshness / roles).
   searchConfig?: SearchConfig;
+  // Latest fetched jobs snapshot — shared across the user's devices so a fresh
+  // device shows the last pull instead of re-spending Apify credits.
+  jobsSnapshot?: { jobs: Job[]; refreshedAt: string };
 }
 
 async function getDb(): Promise<Db> {

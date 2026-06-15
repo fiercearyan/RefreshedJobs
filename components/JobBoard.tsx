@@ -10,7 +10,6 @@ type Sort = "match" | "new";
 type FiledStatus = "applied" | "saved" | "notinterested";
 type Status = Record<string, FiledStatus>;
 
-const JKEY = "jobsCacheV1"; // last successful pull { jobs, refreshedAt } (per-device cache)
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
 const LANG_PREF = ["Java", "Spring Boot", "Go", "Scala", "Python", "C++", "Node.js", "TypeScript"];
 const INFRA_PREF = [
@@ -85,19 +84,11 @@ export default function JobBoard({
   const [filedAt, setFiledAt] = useState<Record<string, number>>({});
   const [filedSort, setFiledSort] = useState<"recent" | "alpha">("recent");
 
-  // On mount: restore the last pull from the per-device localStorage cache (so a
-  // browser refresh doesn't re-hit Apify), and load Applied/Not-interested from
-  // the user's account (synced across devices via MongoDB).
+  // On mount: load Applied/Saved/Not-interested from the user's account (synced
+  // across devices via MongoDB). The jobs snapshot itself is server-rendered from
+  // MongoDB via initialJobs, so a fresh device / browser refresh shows the same
+  // pull without re-hitting Apify.
   useEffect(() => {
-    try {
-      const cached = JSON.parse(localStorage.getItem(JKEY) || "null");
-      if (cached && Array.isArray(cached.jobs) && cached.jobs.length) {
-        setJobs(cached.jobs);
-        setRefreshedAt(cached.refreshedAt ?? null);
-      }
-    } catch {
-      /* ignore */
-    }
     fetch("/api/status")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -145,16 +136,7 @@ export default function JobBoard({
     // (e.g. it's older than the freshness window), in which case it would
     // otherwise vanish. Persist to the cache so it survives a browser refresh too.
     if (!val) {
-      setJobs((prev) => {
-        if (prev.some((x) => x.url === job.url)) return prev;
-        const next = [job, ...prev];
-        try {
-          localStorage.setItem(JKEY, JSON.stringify({ jobs: next, refreshedAt }));
-        } catch {
-          /* ignore quota errors */
-        }
-        return next;
-      });
+      setJobs((prev) => (prev.some((x) => x.url === job.url) ? prev : [job, ...prev]));
     }
     // …then persist to the account (synced across devices).
     fetch("/api/status", {
@@ -179,15 +161,8 @@ export default function JobBoard({
         setJobs(data.jobs);
         setRefreshedAt(data.refreshedAt);
         if (data.config) setConfig(data.config);
-        // Persist so a browser refresh restores these without calling Apify again.
-        try {
-          localStorage.setItem(
-            JKEY,
-            JSON.stringify({ jobs: data.jobs, refreshedAt: data.refreshedAt }),
-          );
-        } catch {
-          /* ignore quota errors */
-        }
+        // The server already saved this snapshot to the user's account (MongoDB),
+        // so every device picks it up on next load — no per-device cache needed.
       }
       if (data.error) setError(data.error);
     } catch (e) {
@@ -236,7 +211,7 @@ export default function JobBoard({
     if (sen.size && !sen.has(j.sen)) return false;
     if (lang.size && !j.lang.some((s) => lang.has(s))) return false;
     if (infra.size && !j.infra.some((s) => infra.has(s))) return false;
-    if (expFilter && j.exp != null && j.exp - exp > 3) return false;
+    if (expFilter && j.exp != null && j.exp > exp) return false;
     if (q && !searchHay(j).includes(q)) return false;
     return true;
   }
@@ -430,7 +405,7 @@ export default function JobBoard({
               <span>20</span>
             </div>
             <Toggle on={expFilter} onClick={() => setExpFilter((v) => !v)} className="mt-2">
-              Hide roles needing ≫ my exp
+              Hide roles needing &gt; my exp
             </Toggle>
           </FGroup>
 
