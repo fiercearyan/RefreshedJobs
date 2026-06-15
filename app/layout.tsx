@@ -4,7 +4,7 @@ import Providers from "@/components/Providers";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "OpenRoles — Backend & Platform jobs",
+  title: "OpenRoles",
   description:
     "Live LinkedIn backend / platform roles in India, matched to a distributed-systems engineer (~4 yrs).",
 };
