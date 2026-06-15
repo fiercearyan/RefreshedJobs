@@ -32,6 +32,9 @@ Tagline: *Find the right role…Faster.*
   Apify credits.
 - **Theming** — dark by default with a light toggle in the navbar (remembered, no flash). Global
   navbar (logo left · OpenRoles center · theme toggle + profile right), custom SVG logo + favicon.
+- **Saved-job notifications** — an in-app navbar bell with a red dot when a saved job has been on
+  your list for ≥12h. Clicking marks it read (synced across devices); it re-fires 12h later while
+  still saved, and clears once you apply or unsave. One reminder per job; web-only, no email.
 - **Profile** — account info, optional phone, encrypted Apify key, and activity counts
   (Applied / Saved / Not-interested).
 
@@ -49,6 +52,7 @@ app/
                           caches, and saves the snapshot to MongoDB
   api/search-config/route.ts  GET/POST — read/update the user's location/freshness/roles
   api/status/route.ts     GET/POST — per-user Applied/Saved/Not-interested (+ filed timestamps)
+  api/notifications/route.ts  POST — mark saved-job reminders read
   api/profile/route.ts    GET/POST — phone + encrypted Apify key
   api/health/route.ts     public env diagnostic (booleans only, no secrets)
   signin/page.tsx         Google sign-in screen
@@ -61,6 +65,7 @@ components/
   JobBoard.tsx            the full board (header, filters, cards, tabs, refresh, settings)
   SearchSettings.tsx      the Settings modal (locations, freshness, roles)
   Navbar.tsx              global navbar + theme toggle
+  NotificationBell.tsx    saved-job reminder bell (12h, red dot, read-on-open)
   Logo.tsx                inline SVG logo
   Providers.tsx           client SessionProvider wrapper
 lib/
@@ -181,6 +186,7 @@ Work happens on `vX-dev` branches, merged into `main` and tagged once verified i
 | v3.2   | Saved tab + per-card Save, profile activity counts                                        |
 | v3.3   | New tagline, unsave returns job to Active (+ Apply in Saved), Recent/A–Z sort in filed tabs |
 | v3.4   | Fixed exp filter, cross-device jobs-snapshot sync via MongoDB, favicon + tab title        |
+| v4.0   | In-app saved-job notification bell — 12h reminders, red dot, read-on-open, 12h re-fire     |
 
 ## Optional / future
 
@@ -191,8 +197,7 @@ Work happens on `vX-dev` branches, merged into `main` and tagged once verified i
   ```
 - **Secret token on `/api/refresh`** — set `REFRESH_SECRET` to require `?token=<value>` (or an
   `x-refresh-token` header).
-- **Roadmap** — saved-job bell notification (in-app, when a saved job crosses 12h), editable profile
-  (resume, skills), and more login providers.
+- **Roadmap** — editable profile (resume, skills) and more login providers.
 
 ## Notes
 
