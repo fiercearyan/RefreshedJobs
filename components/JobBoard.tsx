@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Job, RefreshResponse } from "@/lib/types";
+import SearchSettings from "@/components/SearchSettings";
+import { DEFAULT_CONFIG, FRESHNESS_LABEL, type SearchConfig } from "@/lib/searchConfig";
 
 type View = "active" | "applied" | "notinterested";
 type Sort = "match" | "new";
@@ -58,6 +60,8 @@ export default function JobBoard({
   const [refreshedAt, setRefreshedAt] = useState<string | null>(initialRefreshedAt);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<SearchConfig>(DEFAULT_CONFIG);
+  const [showSettings, setShowSettings] = useState(false);
 
   // filter / sort / view state
   const [q, setQ] = useState("");
@@ -101,6 +105,14 @@ export default function JobBoard({
       .catch(() => {
         /* ignore — board still works, just no saved statuses */
       });
+    fetch("/api/search-config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.config) setConfig(data.config);
+      })
+      .catch(() => {
+        /* ignore — fall back to default config display */
+      });
   }, []);
 
   function setAct(job: Job, val: "" | "applied" | "notinterested") {
@@ -139,6 +151,7 @@ export default function JobBoard({
       if (data.jobs) {
         setJobs(data.jobs);
         setRefreshedAt(data.refreshedAt);
+        if (data.config) setConfig(data.config);
         // Persist so a browser refresh restores these without calling Apify again.
         try {
           localStorage.setItem(
@@ -270,8 +283,9 @@ export default function JobBoard({
             Backend &amp; Platform Job Board — India
           </h1>
           <p className="mt-[3px] text-[12.5px] text-muted">
-            LinkedIn roles posted in the last 24h · matched to a backend / distributed-systems
-            engineer (~4 yrs) · refreshed {fmtRefreshed(refreshedAt)}
+            LinkedIn roles posted in the last {FRESHNESS_LABEL[config.freshness]} · {config.location}{" "}
+            · matched to a backend / distributed-systems engineer (~4 yrs) · refreshed{" "}
+            {fmtRefreshed(refreshedAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -296,9 +310,17 @@ export default function JobBoard({
             </Tab>
           </div>
           <button
+            onClick={() => setShowSettings(true)}
+            title="Search settings (location, freshness, roles)"
+            aria-label="Search settings"
+            className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-[12px] py-[7px] text-xs font-semibold shadow-card transition hover:border-brand"
+          >
+            ⚙︎ Settings
+          </button>
+          <button
             onClick={refresh}
             disabled={loading}
-            className="ml-1 inline-flex items-center gap-2 rounded-full bg-brand px-[15px] py-[8px] text-xs font-bold text-white shadow-card transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-full bg-brand px-[15px] py-[8px] text-xs font-bold text-white shadow-card transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <>
@@ -481,6 +503,18 @@ export default function JobBoard({
           </div>
         </main>
       </div>
+
+      {showSettings && (
+        <SearchSettings
+          initial={config}
+          onClose={() => setShowSettings(false)}
+          onSaved={(next, doRefresh) => {
+            setConfig(next);
+            setShowSettings(false);
+            if (doRefresh) refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

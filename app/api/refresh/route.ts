@@ -3,9 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserByEmail } from "@/lib/users";
 import { decrypt } from "@/lib/crypto";
-import { runAllSearches } from "@/lib/apify";
+import { runSearches } from "@/lib/apify";
 import { normalizeJobs } from "@/lib/normalize";
 import { getCachedJobs, setCachedJobs } from "@/lib/cache";
+import { DEFAULT_CONFIG } from "@/lib/searchConfig";
 import type { RefreshResponse } from "@/lib/types";
 
 // Apify runs can take 30–60s+. Allow the max on Vercel Hobby (Pro can raise to 300).
@@ -32,14 +33,17 @@ async function handleRefresh(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Please sign in to refresh." }, { status: 401 });
   }
 
-  // Prefer the user's own Apify key; fall back to the shared server token.
+  // One read for both the user's Apify key and their saved search config.
   let token: string | undefined;
+  let config = DEFAULT_CONFIG;
   try {
     const user = await getUserByEmail(email);
     if (user?.apifyKeyEnc) token = decrypt(user.apifyKeyEnc);
+    if (user?.searchConfig) config = user.searchConfig;
   } catch {
     /* fall back below */
   }
+  // Prefer the user's own key; fall back to the shared server token.
   if (!token) token = process.env.APIFY_TOKEN;
 
   if (!token) {
@@ -54,11 +58,12 @@ async function handleRefresh(req: Request): Promise<NextResponse> {
   }
 
   try {
-    const raw = await runAllSearches(token);
+    const raw = await runSearches(token, config);
     const jobs = normalizeJobs(raw);
     const payload: RefreshResponse = {
       jobs,
       refreshedAt: new Date().toISOString(),
+      config,
     };
     setCachedJobs(payload);
     return NextResponse.json(payload);

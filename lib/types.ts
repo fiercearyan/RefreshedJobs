@@ -47,7 +47,10 @@ export interface Job {
   url: string; // stable job URL (dedupe + localStorage key)
 }
 
+import type { SearchConfig } from "./searchConfig";
+
 export interface RefreshResponse {
   jobs: Job[];
   refreshedAt: string; // ISO string
+  config?: SearchConfig; // the config used for this pull
 }
