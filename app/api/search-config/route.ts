@@ -12,7 +12,9 @@ export async function GET() {
   if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const user = await getUserByEmail(email);
-  return NextResponse.json({ config: user?.searchConfig ?? DEFAULT_CONFIG });
+  // sanitize migrates older single-location configs to the new shape
+  const config = user?.searchConfig ? sanitizeConfig(user.searchConfig) : DEFAULT_CONFIG;
+  return NextResponse.json({ config });
 }
 
 export async function POST(req: Request) {

@@ -285,9 +285,9 @@ export default function JobBoard({
             Backend &amp; Platform Job Board — India
           </h1>
           <p className="mt-[3px] text-[12.5px] text-muted">
-            LinkedIn roles posted in the last {FRESHNESS_LABEL[config.freshness]} · {config.location}{" "}
-            · matched to a backend / distributed-systems engineer (~4 yrs) · refreshed{" "}
-            {fmtRefreshed(refreshedAt)}
+            LinkedIn roles posted in the last {FRESHNESS_LABEL[config.freshness]} ·{" "}
+            {config.locations.join(" / ")} · matched to {config.roles.map((r) => r.title).join(", ")}{" "}
+            · refreshed {fmtRefreshed(refreshedAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

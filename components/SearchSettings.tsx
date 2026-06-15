@@ -5,6 +5,7 @@ import {
   FRESHNESS_LABEL,
   FRESHNESS_OPTIONS,
   MAX_LIMIT,
+  MAX_LOCATIONS,
   MAX_ROLES,
   MIN_LIMIT,
   type Freshness,
@@ -20,7 +21,9 @@ export default function SearchSettings({
   onClose: () => void;
   onSaved: (config: SearchConfig, refresh: boolean) => void;
 }) {
-  const [location, setLocation] = useState(initial.location);
+  const [locations, setLocations] = useState<string[]>(
+    initial.locations.length ? initial.locations : [""],
+  );
   const [freshness, setFreshness] = useState<Freshness>(initial.freshness);
   const [roles, setRoles] = useState(initial.roles.map((r) => ({ ...r })));
   const [saving, setSaving] = useState(false);
@@ -36,11 +39,16 @@ export default function SearchSettings({
     setRoles((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  function setLoc(i: number, val: string) {
+    setLocations((prev) => prev.map((l, idx) => (idx === i ? val : l)));
+  }
+
   async function save(refresh: boolean) {
+    const cleanLocations = locations.map((l) => l.trim()).filter((l) => l.length > 0);
     const cleanRoles = roles
       .map((r) => ({ title: r.title.trim(), limit: r.limit }))
       .filter((r) => r.title.length > 0);
-    if (!location.trim()) return setErr("Please enter a location.");
+    if (cleanLocations.length === 0) return setErr("Please enter at least one location.");
     if (cleanRoles.length === 0) return setErr("Add at least one role title.");
 
     setSaving(true);
@@ -49,7 +57,7 @@ export default function SearchSettings({
       const res = await fetch("/api/search-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location: location.trim(), freshness, roles: cleanRoles }),
+        body: JSON.stringify({ locations: cleanLocations, freshness, roles: cleanRoles }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
@@ -84,16 +92,40 @@ export default function SearchSettings({
           you change it. (The sidebar filters only narrow what&apos;s already fetched.)
         </p>
 
-        {/* location */}
-        <label className="mb-1 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-          Location
-        </label>
-        <input
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="e.g. India, Bengaluru, Remote"
-          className="mb-4 w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[9px] text-[14px] text-ink outline-none focus:border-brand"
-        />
+        {/* locations */}
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
+            Locations ({locations.length}/{MAX_LOCATIONS})
+          </label>
+          <button
+            onClick={() => locations.length < MAX_LOCATIONS && setLocations((p) => [...p, ""])}
+            disabled={locations.length >= MAX_LOCATIONS}
+            className="text-[12px] font-bold text-brand disabled:opacity-40"
+          >
+            + Add location
+          </button>
+        </div>
+        <div className="mb-4 flex flex-col gap-2">
+          {locations.map((loc, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={loc}
+                onChange={(e) => setLoc(i, e.target.value)}
+                placeholder={i === 0 ? "e.g. India, Bengaluru, Remote" : "Second location (optional)"}
+                className="w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[9px] text-[14px] text-ink outline-none focus:border-brand"
+              />
+              {locations.length > 1 && (
+                <button
+                  onClick={() => setLocations((p) => p.filter((_, idx) => idx !== i))}
+                  aria-label="Remove location"
+                  className="grid h-8 w-8 flex-none place-items-center rounded-[9px] border border-line bg-chip text-muted hover:border-red-ink hover:text-red-ink"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
 
         {/* freshness */}
         <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">

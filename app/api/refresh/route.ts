@@ -6,7 +6,7 @@ import { decrypt } from "@/lib/crypto";
 import { runSearches } from "@/lib/apify";
 import { normalizeJobs } from "@/lib/normalize";
 import { getCachedJobs, setCachedJobs } from "@/lib/cache";
-import { DEFAULT_CONFIG } from "@/lib/searchConfig";
+import { DEFAULT_CONFIG, sanitizeConfig } from "@/lib/searchConfig";
 import type { RefreshResponse } from "@/lib/types";
 
 // Apify runs can take 30–60s+. Allow the max on Vercel Hobby (Pro can raise to 300).
@@ -39,7 +39,8 @@ async function handleRefresh(req: Request): Promise<NextResponse> {
   try {
     const user = await getUserByEmail(email);
     if (user?.apifyKeyEnc) token = decrypt(user.apifyKeyEnc);
-    if (user?.searchConfig) config = user.searchConfig;
+    // sanitize migrates older single-location configs to the new shape
+    if (user?.searchConfig) config = sanitizeConfig(user.searchConfig);
   } catch {
     /* fall back below */
   }

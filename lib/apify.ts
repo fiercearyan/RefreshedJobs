@@ -44,9 +44,14 @@ async function runSearch(
  */
 export async function runSearches(token: string, config: SearchConfig): Promise<ApifyJob[]> {
   const seconds = FRESHNESS_SECONDS[config.freshness];
-  const results = await Promise.allSettled(
-    config.roles.map((role) => runSearch(token, role, config.location, seconds)),
-  );
+  // Every role × every location (1–2 locations).
+  const tasks: Promise<ApifyJob[]>[] = [];
+  for (const location of config.locations) {
+    for (const role of config.roles) {
+      tasks.push(runSearch(token, role, location, seconds));
+    }
+  }
+  const results = await Promise.allSettled(tasks);
 
   const merged: ApifyJob[] = [];
   const errors: string[] = [];

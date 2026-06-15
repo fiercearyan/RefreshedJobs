@@ -9,7 +9,7 @@ export interface RoleSearch {
 }
 
 export interface SearchConfig {
-  location: string;
+  locations: string[]; // 1–2 locations
   freshness: Freshness;
   roles: RoleSearch[];
 }
@@ -39,13 +39,14 @@ export const FRESHNESS_LABEL: Record<Freshness, string> = {
 
 // Caps to bound Apify cost and stay within the 60s serverless budget.
 export const MAX_ROLES = 5;
+export const MAX_LOCATIONS = 2;
 export const MIN_LIMIT = 1;
 export const MAX_LIMIT = 25;
 export const MAX_LOCATION_LEN = 80;
 export const MAX_TITLE_LEN = 80;
 
 export const DEFAULT_CONFIG: SearchConfig = {
-  location: "India",
+  locations: ["India"],
   freshness: "24h",
   roles: [
     { title: "Backend Engineer", limit: 20 },
@@ -59,8 +60,22 @@ export const DEFAULT_CONFIG: SearchConfig = {
 export function sanitizeConfig(input: unknown): SearchConfig {
   const obj = (input ?? {}) as Record<string, unknown>;
 
-  const rawLoc = typeof obj.location === "string" ? obj.location.trim() : "";
-  const location = rawLoc ? rawLoc.slice(0, MAX_LOCATION_LEN) : DEFAULT_CONFIG.location;
+  // Accept new `locations` array, or migrate the old single `location` string.
+  let rawLocs: unknown[] = [];
+  if (Array.isArray(obj.locations)) rawLocs = obj.locations;
+  else if (typeof obj.location === "string") rawLocs = [obj.location];
+  const seen = new Set<string>();
+  let locations = rawLocs
+    .map((l) => (typeof l === "string" ? l.trim().slice(0, MAX_LOCATION_LEN) : ""))
+    .filter((l) => l.length > 0)
+    .filter((l) => {
+      const k = l.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, MAX_LOCATIONS);
+  if (locations.length === 0) locations = [...DEFAULT_CONFIG.locations];
 
   const freshness: Freshness = FRESHNESS_OPTIONS.includes(obj.freshness as Freshness)
     ? (obj.freshness as Freshness)
@@ -80,5 +95,5 @@ export function sanitizeConfig(input: unknown): SearchConfig {
 
   if (roles.length === 0) roles = DEFAULT_CONFIG.roles;
 
-  return { location, freshness, roles };
+  return { locations, freshness, roles };
 }
