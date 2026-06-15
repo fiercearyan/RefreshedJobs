@@ -1,47 +1,36 @@
 import type { ApifyJob } from "./types";
+import { FRESHNESS_SECONDS, type RoleSearch, type SearchConfig } from "./searchConfig";
 
 const ACTOR = "valig~linkedin-jobs-scraper";
 const ENDPOINT = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items`;
 
-// The four searches to run in parallel, per the spec.
-export const SEARCHES: { title: string; limit: number }[] = [
-  { title: "Backend Engineer", limit: 20 },
-  { title: "Senior Software Engineer", limit: 20 },
-  { title: "Platform Engineer", limit: 15 },
-  { title: "Software Development Engineer", limit: 15 },
-];
-
-interface SearchInput {
-  title: string;
-  limit: number;
-  location?: string;
-  datePosted?: string;
-}
-
 /** Run one Apify search synchronously and return its dataset items. */
 async function runSearch(
   token: string,
-  { title, limit }: { title: string; limit: number },
+  role: RoleSearch,
+  location: string,
+  freshnessSeconds: number,
 ): Promise<ApifyJob[]> {
-  const input: SearchInput = {
-    title,
-    location: "India",
-    datePosted: "r86400", // posted in the last 24h
-    limit,
+  const input = {
+    title: role.title,
+    location,
+    limit: role.limit,
+    // f_TPR = "posted within N seconds" — gives us 3h/6h/12h/24h/2d/3d/7d,
+    // which the actor's built-in datePosted enum (24h/7d/30d) can't express.
+    urlParam: [{ key: "f_TPR", value: `r${freshnessSeconds}` }],
   };
 
   const res = await fetch(`${ENDPOINT}?token=${encodeURIComponent(token)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
-    // Each Apify run can take a while; keep this uncached.
     cache: "no-store",
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
-      `Apify search "${title}" failed: ${res.status} ${res.statusText} ${body.slice(0, 200)}`,
+      `Apify search "${role.title}" failed: ${res.status} ${res.statusText} ${body.slice(0, 200)}`,
     );
   }
 
@@ -50,11 +39,19 @@ async function runSearch(
 }
 
 /**
- * Run all four searches in parallel. Uses allSettled so one failing search
- * doesn't sink the whole refresh — we return whatever succeeded.
+ * Run every role search in the user's config in parallel. Uses allSettled so one
+ * failing search doesn't sink the whole refresh — we return whatever succeeded.
  */
-export async function runAllSearches(token: string): Promise<ApifyJob[]> {
-  const results = await Promise.allSettled(SEARCHES.map((s) => runSearch(token, s)));
+export async function runSearches(token: string, config: SearchConfig): Promise<ApifyJob[]> {
+  const seconds = FRESHNESS_SECONDS[config.freshness];
+  // Every role × every location (1–2 locations).
+  const tasks: Promise<ApifyJob[]>[] = [];
+  for (const location of config.locations) {
+    for (const role of config.roles) {
+      tasks.push(runSearch(token, role, location, seconds));
+    }
+  }
+  const results = await Promise.allSettled(tasks);
 
   const merged: ApifyJob[] = [];
   const errors: string[] = [];
@@ -63,7 +60,6 @@ export async function runAllSearches(token: string): Promise<ApifyJob[]> {
     else errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
   }
 
-  // Only throw if *every* search failed — partial data is still useful.
   if (merged.length === 0 && errors.length > 0) {
     throw new Error(errors.join(" | "));
   }

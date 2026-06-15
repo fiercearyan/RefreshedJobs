@@ -19,6 +19,9 @@ export default function ProfilePage() {
   const [apifyKey, setApifyKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [stats, setStats] = useState<{ applied: number; saved: number; notinterested: number } | null>(
+    null,
+  );
 
   useEffect(() => {
     fetch("/api/profile")
@@ -28,6 +31,20 @@ export default function ProfilePage() {
         setPhone(data.phone ?? "");
       })
       .catch(() => setMsg("Failed to load profile."));
+    fetch("/api/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.status) return;
+        const vals = Object.values(data.status) as string[];
+        setStats({
+          applied: vals.filter((v) => v === "applied").length,
+          saved: vals.filter((v) => v === "saved").length,
+          notinterested: vals.filter((v) => v === "notinterested").length,
+        });
+      })
+      .catch(() => {
+        /* ignore — stats just won't show */
+      });
   }, []);
 
   async function save(body: { phone?: string; apifyKey?: string }, note: string) {
@@ -63,7 +80,7 @@ export default function ProfilePage() {
         </Link>
         <button
           onClick={() => signOut({ callbackUrl: "/signin" })}
-          className="rounded-[9px] border border-line bg-chip px-3 py-2 text-[12.5px] font-semibold text-sslate hover:border-[#c7cfdb]"
+          className="rounded-[9px] border border-line bg-chip px-3 py-2 text-[12.5px] font-semibold text-sslate hover:border-brand"
         >
           Sign out
         </button>
@@ -82,7 +99,15 @@ export default function ProfilePage() {
         <div>
           <div className="text-[16px] font-bold">{p?.name ?? "—"}</div>
           <div className="text-[13px] text-muted">{p?.email ?? ""}</div>
+          {p?.phone && <div className="mt-0.5 text-[12.5px] text-muted">📞 {p.phone}</div>}
         </div>
+      </div>
+
+      {/* activity stats */}
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <StatTile label="Applied" value={stats?.applied} accent="text-sgreen" />
+        <StatTile label="Saved jobs" value={stats?.saved} accent="text-sblue" />
+        <StatTile label="Not interested" value={stats?.notinterested} accent="text-red-ink" />
       </div>
 
       {/* phone */}
@@ -165,6 +190,23 @@ export default function ProfilePage() {
       </div>
 
       {msg && <div className="text-[13px] font-semibold text-brand">{msg}</div>}
+    </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number | undefined;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-[12px] border border-line bg-panel p-4 text-center shadow-card">
+      <div className={`text-[24px] font-extrabold leading-none ${accent}`}>{value ?? "—"}</div>
+      <div className="mt-1.5 text-[12px] font-semibold text-muted">{label}</div>
     </div>
   );
 }
