@@ -17,11 +17,13 @@ export async function GET() {
   const user = await getUserByEmail(email);
   const status: Record<string, "applied" | "saved" | "notinterested"> = {};
   const archive: Record<string, Job> = {};
+  const at: Record<string, number> = {};
   for (const e of user?.jobStatus ?? []) {
     status[e.url] = e.status;
     archive[e.url] = e.job;
+    at[e.url] = e.at ?? 0;
   }
-  return NextResponse.json({ status, archive });
+  return NextResponse.json({ status, archive, at });
 }
 
 export async function POST(req: Request) {
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
   if (body.status && body.job) {
     await col.updateOne(
       { email },
-      { $push: { jobStatus: { url, status: body.status, job: body.job } } },
+      { $push: { jobStatus: { url, status: body.status, job: body.job, at: Date.now() } } },
     );
   }
 

@@ -81,6 +81,9 @@ export default function JobBoard({
   const [status, setStatus] = useState<Status>({});
   // archive of filed (applied / not-interested) jobs, so they survive a new pull
   const [archive, setArchive] = useState<Record<string, Job>>({});
+  // when each job was filed (epoch ms) — drives the "recent" sort in filed tabs
+  const [filedAt, setFiledAt] = useState<Record<string, number>>({});
+  const [filedSort, setFiledSort] = useState<"recent" | "alpha">("recent");
 
   // On mount: restore the last pull from the per-device localStorage cache (so a
   // browser refresh doesn't re-hit Apify), and load Applied/Not-interested from
@@ -101,6 +104,7 @@ export default function JobBoard({
         if (data) {
           setStatus(data.status || {});
           setArchive(data.archive || {});
+          setFiledAt(data.at || {});
         }
       })
       .catch(() => {
@@ -127,6 +131,12 @@ export default function JobBoard({
     setArchive((prev) => {
       const next = { ...prev };
       if (val) next[job.url] = job;
+      else delete next[job.url];
+      return next;
+    });
+    setFiledAt((prev) => {
+      const next = { ...prev };
+      if (val) next[job.url] = Date.now();
       else delete next[job.url];
       return next;
     });
@@ -245,14 +255,21 @@ export default function JobBoard({
         (j) => status[j.url] === view && (!q || searchHay(j).includes(q)),
       );
     }
-    if (sort === "new") {
+    if (view !== "active") {
+      // Filed tabs: Recent (most recently filed first) or A–Z by title.
+      if (filedSort === "alpha") {
+        l = [...l].sort((a, b) => a.t.localeCompare(b.t));
+      } else {
+        l = [...l].sort((a, b) => (filedAt[b.url] ?? 0) - (filedAt[a.url] ?? 0));
+      }
+    } else if (sort === "new") {
       l = [...l].sort((a, b) => b.iso.localeCompare(a.iso) || b.score - a.score);
     } else {
       l = [...l].sort((a, b) => b.score + expBonus(b) - (a.score + expBonus(a)));
     }
     return l;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, archive, status, view, q, sen, lang, infra, ai, remote, strong, exp, expFilter, sort]);
+  }, [jobs, archive, status, view, q, sen, lang, infra, ai, remote, strong, exp, expFilter, sort, filedSort, filedAt]);
 
   const active = useMemo(() => jobs.filter((j) => !status[j.url]), [jobs, status]);
   const counts = {
@@ -475,12 +492,25 @@ export default function JobBoard({
               {view === "active" ? active.length : list.length} roles
             </div>
             <div className="flex gap-[6px] rounded-[10px] border border-line bg-panel p-1 shadow-card">
-              <SortBtn on={sort === "match"} onClick={() => setSort("match")}>
-                ★ Best match
-              </SortBtn>
-              <SortBtn on={sort === "new"} onClick={() => setSort("new")}>
-                🕑 Newest
-              </SortBtn>
+              {view === "active" ? (
+                <>
+                  <SortBtn on={sort === "match"} onClick={() => setSort("match")}>
+                    ★ Best match
+                  </SortBtn>
+                  <SortBtn on={sort === "new"} onClick={() => setSort("new")}>
+                    🕑 Newest
+                  </SortBtn>
+                </>
+              ) : (
+                <>
+                  <SortBtn on={filedSort === "recent"} onClick={() => setFiledSort("recent")}>
+                    🕑 Recent
+                  </SortBtn>
+                  <SortBtn on={filedSort === "alpha"} onClick={() => setFiledSort("alpha")}>
+                    🔤 A–Z
+                  </SortBtn>
+                </>
+              )}
             </div>
           </div>
 
