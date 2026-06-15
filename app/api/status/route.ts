@@ -15,7 +15,7 @@ export async function GET() {
   if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const user = await getUserByEmail(email);
-  const status: Record<string, "applied" | "notinterested"> = {};
+  const status: Record<string, "applied" | "saved" | "notinterested"> = {};
   const archive: Record<string, Job> = {};
   for (const e of user?.jobStatus ?? []) {
     status[e.url] = e.status;
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const email = session?.user?.email;
   if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { url?: string; status?: "" | "applied" | "notinterested"; job?: Job };
+  let body: { url?: string; status?: "" | "applied" | "saved" | "notinterested"; job?: Job };
   try {
     body = await req.json();
   } catch {

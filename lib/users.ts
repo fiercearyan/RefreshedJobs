@@ -15,7 +15,7 @@ export interface UserDoc {
   // Saved Applied / Not-interested jobs. Stored as an array (Mongo field names
   // can't contain the dots/slashes in URLs). We keep the job snapshot too so the
   // filed tabs render on any device.
-  jobStatus?: { url: string; status: "applied" | "notinterested"; job: Job }[];
+  jobStatus?: { url: string; status: "applied" | "saved" | "notinterested"; job: Job }[];
   // What this user fetches from Apify on refresh (location / freshness / roles).
   searchConfig?: SearchConfig;
 }

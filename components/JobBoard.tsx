@@ -5,9 +5,10 @@ import type { Job, RefreshResponse } from "@/lib/types";
 import SearchSettings from "@/components/SearchSettings";
 import { DEFAULT_CONFIG, FRESHNESS_LABEL, type SearchConfig } from "@/lib/searchConfig";
 
-type View = "active" | "applied" | "notinterested";
+type View = "active" | "applied" | "saved" | "notinterested";
 type Sort = "match" | "new";
-type Status = Record<string, "applied" | "notinterested">;
+type FiledStatus = "applied" | "saved" | "notinterested";
+type Status = Record<string, FiledStatus>;
 
 const JKEY = "jobsCacheV1"; // last successful pull { jobs, refreshedAt } (per-device cache)
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
@@ -115,7 +116,7 @@ export default function JobBoard({
       });
   }, []);
 
-  function setAct(job: Job, val: "" | "applied" | "notinterested") {
+  function setAct(job: Job, val: "" | FiledStatus) {
     // Optimistic local update…
     setStatus((prev) => {
       const next = { ...prev };
@@ -244,6 +245,7 @@ export default function JobBoard({
     remote: active.filter((j) => j.mode === "Remote").length,
     active: active.length,
     applied: Object.values(status).filter((v) => v === "applied").length,
+    saved: Object.values(status).filter((v) => v === "saved").length,
     not: Object.values(status).filter((v) => v === "notinterested").length,
   };
 
@@ -304,6 +306,9 @@ export default function JobBoard({
             </Tab>
             <Tab on={view === "applied"} onClick={() => setView("applied")}>
               ✓ Applied<TabNum on={view === "applied"}>{counts.applied}</TabNum>
+            </Tab>
+            <Tab on={view === "saved"} onClick={() => setView("saved")}>
+              🔖 Saved<TabNum on={view === "saved"}>{counts.saved}</TabNum>
             </Tab>
             <Tab on={view === "notinterested"} onClick={() => setView("notinterested")}>
               🚫 Not interested<TabNum on={view === "notinterested"}>{counts.not}</TabNum>
@@ -469,17 +474,21 @@ export default function JobBoard({
                 <b className="mb-[6px] block text-[16px] text-ink">
                   {view === "applied"
                     ? "No jobs marked Applied yet"
-                    : view === "notinterested"
-                      ? "Nothing marked Not interested"
-                      : jobs.length === 0
-                        ? "No jobs loaded yet"
-                        : "No roles match these filters"}
+                    : view === "saved"
+                      ? "No saved jobs yet"
+                      : view === "notinterested"
+                        ? "Nothing marked Not interested"
+                        : jobs.length === 0
+                          ? "No jobs loaded yet"
+                          : "No roles match these filters"}
                 </b>
                 {view === "active"
                   ? jobs.length === 0
-                    ? "Hit Refresh to pull the latest LinkedIn roles for India (last 24h)."
+                    ? "Hit Refresh to pull the latest LinkedIn roles."
                     : "Try widening seniority, clearing skills, or moving the experience slider."
-                  : "Use the ✓ Applied / 🚫 Not interested buttons on a card to file it here. Filed jobs stay hidden from Active even after the board refreshes."}
+                  : view === "saved"
+                    ? "Tap 🔖 Save on a card to keep it here. Saved jobs stay until you unsave them and never reappear in Active after a refresh."
+                    : "Use the ✓ Applied / 🔖 Saved / 🚫 Not interested buttons on a card to file it here. Filed jobs stay hidden from Active even after the board refreshes."}
               </div>
             ) : (
               list.map((j) => (
@@ -655,8 +664,8 @@ function JobCard({
   fit: boolean;
   exp: number;
   view: View;
-  status?: "applied" | "notinterested";
-  onAct: (job: Job, val: "" | "applied" | "notinterested") => void;
+  status?: FiledStatus;
+  onAct: (job: Job, val: "" | FiledStatus) => void;
 }) {
   return (
     <div
@@ -731,13 +740,19 @@ function JobCard({
           <>
             <button
               onClick={() => onAct(j, "applied")}
-              className="min-w-[118px] flex-1 rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-sgreen hover:bg-sgreen-bg hover:text-sgreen"
+              className="min-w-[92px] flex-1 rounded-[9px] border border-line bg-chip px-[8px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-sgreen hover:bg-sgreen-bg hover:text-sgreen"
             >
               ✓ Applied
             </button>
             <button
+              onClick={() => onAct(j, "saved")}
+              className="min-w-[92px] flex-1 rounded-[9px] border border-line bg-chip px-[8px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-sblue hover:bg-sblue-bg hover:text-sblue"
+            >
+              🔖 Save
+            </button>
+            <button
               onClick={() => onAct(j, "notinterested")}
-              className="min-w-[118px] flex-1 rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-red-ink hover:bg-red-soft hover:text-red-ink"
+              className="min-w-[92px] flex-1 rounded-[9px] border border-line bg-chip px-[8px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-red-ink hover:bg-red-soft hover:text-red-ink"
             >
               🚫 Not interested
             </button>
@@ -746,16 +761,20 @@ function JobCard({
           <>
             <span
               className={`rounded-[7px] px-[11px] py-[5px] text-[11.5px] font-bold ${
-                status === "applied" ? "bg-sgreen-bg text-sgreen" : "bg-red-soft text-red-ink"
+                status === "applied"
+                  ? "bg-sgreen-bg text-sgreen"
+                  : status === "saved"
+                    ? "bg-sblue-bg text-sblue"
+                    : "bg-red-soft text-red-ink"
               }`}
             >
-              {status === "applied" ? "✓ Applied" : "🚫 Not interested"}
+              {status === "applied" ? "✓ Applied" : status === "saved" ? "🔖 Saved" : "🚫 Not interested"}
             </span>
             <button
               onClick={() => onAct(j, "")}
               className="flex-none rounded-[9px] border border-line bg-chip px-[10px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-brand hover:bg-brand-soft hover:text-brand"
             >
-              ↶ Move back to Active
+              {status === "saved" ? "↶ Unsave" : "↶ Move back to Active"}
             </button>
           </>
         )}
