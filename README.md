@@ -54,6 +54,7 @@ app/
   api/status/route.ts     GET/POST — per-user Applied/Saved/Not-interested (+ filed timestamps)
   api/notifications/route.ts  POST — mark saved-job reminders read
   api/profile/route.ts    GET/POST — phone + encrypted Apify key
+  api/admin/migrate/route.ts  one-shot jobStatus → userJobs migration (guarded)
   api/health/route.ts     public env diagnostic (booleans only, no secrets)
   signin/page.tsx         Google sign-in screen
   profile/page.tsx        profile: counts, phone, Apify key, sign out
@@ -76,7 +77,8 @@ lib/
   cache.ts                in-memory snapshot cache (error-fallback)
   auth.ts                 NextAuth options (Google provider, Mongo adapter, JWT)
   mongodb.ts              shared MongoClient promise
-  users.ts                user-doc helpers (profile, Apify key, statuses, snapshot, config)
+  users.ts                user-doc helpers (profile, Apify key, snapshot, config)
+  userJobs.ts             userJobs collection (filed jobs) + idempotent migration
   crypto.ts               AES-256-GCM encrypt/decrypt for the Apify key
   types.ts                shared types
 middleware.ts             protects all pages behind sign-in
@@ -187,6 +189,13 @@ Work happens on `vX-dev` branches, merged into `main` and tagged once verified i
 | v3.3   | New tagline, unsave returns job to Active (+ Apply in Saved), Recent/A–Z sort in filed tabs |
 | v3.4   | Fixed exp filter, cross-device jobs-snapshot sync via MongoDB, favicon + tab title        |
 | v4.0   | In-app saved-job notification bell — 12h reminders, red dot, read-on-open, 12h re-fire     |
+| v4.1   | Filed jobs moved from the user doc into a dedicated `userJobs` collection (safe migration) |
+
+> **v4.1 migration:** filed jobs now live in `userJobs` instead of an embedded `jobStatus[]`. Each
+> user is migrated automatically on their next board load (idempotent, insert-if-absent, old field
+> dropped only after copy). To migrate everyone at once, sign in and hit `GET /api/admin/migrate`
+> **after deploying v4.1 to production** (preview shares the same DB, so don't migrate while prod is
+> still on v4.0).
 
 ## Optional / future
 
