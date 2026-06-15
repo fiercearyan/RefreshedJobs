@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { users } from "@/lib/users";
+import { markNotifRead } from "@/lib/userJobs";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +19,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
   const urls = Array.isArray(body.urls) ? body.urls.filter((u) => typeof u === "string" && u) : [];
-  if (urls.length === 0) return NextResponse.json({ ok: true });
-
-  await (await users()).updateOne(
-    { email },
-    { $set: { "jobStatus.$[e].notifReadAt": Date.now() } },
-    { arrayFilters: [{ "e.url": { $in: urls } }] },
-  );
+  await markNotifRead(email, urls);
 
   return NextResponse.json({ ok: true });
 }
