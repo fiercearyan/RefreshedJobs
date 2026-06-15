@@ -282,7 +282,7 @@ export default function JobBoard({
       <header className="mb-[18px] flex flex-wrap items-center justify-between gap-[14px]">
         <div>
           <h1 className="m-0 text-[21px] font-bold tracking-[-0.01em]">
-            Backend &amp; Platform Job Board — India
+            Find the right role...Faster.
           </h1>
           <p className="mt-[3px] text-[12.5px] text-muted">
             LinkedIn roles posted in the last {FRESHNESS_LABEL[config.freshness]} ·{" "}
