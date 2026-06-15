@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Logo from "./Logo";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -64,6 +65,7 @@ export default function Navbar() {
               </svg>
             )}
           </button>
+          {session?.user && <NotificationBell />}
           {session?.user && (
             <Link
               href="/profile"

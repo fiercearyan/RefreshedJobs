@@ -18,12 +18,14 @@ export async function GET() {
   const status: Record<string, "applied" | "saved" | "notinterested"> = {};
   const archive: Record<string, Job> = {};
   const at: Record<string, number> = {};
+  const notifReadAt: Record<string, number> = {};
   for (const e of user?.jobStatus ?? []) {
     status[e.url] = e.status;
     archive[e.url] = e.job;
     at[e.url] = e.at ?? 0;
+    if (e.notifReadAt) notifReadAt[e.url] = e.notifReadAt;
   }
-  return NextResponse.json({ status, archive, at });
+  return NextResponse.json({ status, archive, at, notifReadAt });
 }
 
 export async function POST(req: Request) {
