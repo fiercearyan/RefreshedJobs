@@ -20,6 +20,7 @@ export interface UserDoc {
     status: "applied" | "saved" | "notinterested";
     job: Job;
     at?: number; // epoch ms when filed — used for "recent" sort
+    notifReadAt?: number; // epoch ms the saved-job notification was last read
   }[];
   // What this user fetches from Apify on refresh (location / freshness / roles).
   searchConfig?: SearchConfig;
