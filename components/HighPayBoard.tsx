@@ -2,12 +2,26 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { Job, RefreshResponse } from "@/lib/types";
-import SearchSettings from "@/components/SearchSettings";
-import { DEFAULT_CONFIG, FRESHNESS_LABEL, type SearchConfig } from "@/lib/searchConfig";
+import type { Job } from "@/lib/types";
+import type { HighPayJob, HighPayRefreshResponse } from "@/lib/highPayTypes";
+import {
+  ALL_CATS,
+  ALL_TIERS,
+  CAT_LABEL,
+  TIER_LABEL,
+  type HighPayCat,
+  type HighPayTier,
+} from "@/lib/highPayCompanies";
+import { DEFAULT_HIGH_PAY_CONFIG, type HighPayConfig } from "@/lib/highPayConfig";
+import { FRESHNESS_LABEL } from "@/lib/searchConfig";
+import HighPaySettings from "@/components/HighPaySettings";
+
+/** A high-pay job; jobs restored from the shared filed-jobs archive may predate
+ *  the radar tagging, so `hp` is optional on the board's working type. */
+type BoardJob = Job & { hp?: HighPayJob["hp"] };
 
 type View = "active" | "applied" | "saved" | "notinterested";
-type Sort = "match" | "new";
+type Sort = "band" | "match" | "new";
 type FiledStatus = "applied" | "saved" | "notinterested";
 type Status = Record<string, FiledStatus>;
 
@@ -36,7 +50,6 @@ function scoreClass(s: number) {
 function modeClass(m: string) {
   return m === "Remote" ? "remote" : m === "Hybrid" ? "hybrid" : "onsite";
 }
-
 function fmtRefreshed(iso: string | null): string {
   if (!iso) return "not yet refreshed";
   const d = new Date(iso);
@@ -50,22 +63,26 @@ function fmtRefreshed(iso: string | null): string {
   });
 }
 
-export default function JobBoard({
+export default function HighPayBoard({
   initialJobs,
   initialRefreshedAt,
 }: {
-  initialJobs: Job[];
+  initialJobs: HighPayJob[];
   initialRefreshedAt: string | null;
 }) {
-  const [jobs, setJobs] = useState<Job[]>(initialJobs);
+  const [jobs, setJobs] = useState<BoardJob[]>(initialJobs);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(initialRefreshedAt);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [config, setConfig] = useState<SearchConfig>(DEFAULT_CONFIG);
+  const [note, setNote] = useState<string | null>(null);
+  const [config, setConfig] = useState<HighPayConfig>(DEFAULT_HIGH_PAY_CONFIG);
+  const [companyCount, setCompanyCount] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
   // filter / sort / view state
   const [q, setQ] = useState("");
+  const [tier, setTier] = useState<Set<HighPayTier>>(new Set());
+  const [cat, setCat] = useState<Set<HighPayCat>>(new Set());
   const [sen, setSen] = useState<Set<string>>(new Set());
   const [lang, setLang] = useState<Set<string>>(new Set());
   const [infra, setInfra] = useState<Set<string>>(new Set());
@@ -74,21 +91,16 @@ export default function JobBoard({
   const [strong, setStrong] = useState(false);
   const [exp, setExp] = useState(CANDIDATE_EXP);
   const [expFilter, setExpFilter] = useState(false);
-  const [sort, setSort] = useState<Sort>("match");
+  const [sort, setSort] = useState<Sort>("band");
   const [view, setView] = useState<View>("active");
 
-  // applied / not-interested, persisted by stable job URL
+  // Applied / Saved / Not-interested is shared with the normal OpenRoles board —
+  // same /api/status store, so filing a job here files it everywhere.
   const [status, setStatus] = useState<Status>({});
-  // archive of filed (applied / not-interested) jobs, so they survive a new pull
-  const [archive, setArchive] = useState<Record<string, Job>>({});
-  // when each job was filed (epoch ms) — drives the "recent" sort in filed tabs
+  const [archive, setArchive] = useState<Record<string, BoardJob>>({});
   const [filedAt, setFiledAt] = useState<Record<string, number>>({});
   const [filedSort, setFiledSort] = useState<"recent" | "alpha">("recent");
 
-  // On mount: load Applied/Saved/Not-interested from the user's account (synced
-  // across devices via MongoDB). The jobs snapshot itself is server-rendered from
-  // MongoDB via initialJobs, so a fresh device / browser refresh shows the same
-  // pull without re-hitting Apify.
   useEffect(() => {
     fetch("/api/status")
       .then((r) => (r.ok ? r.json() : null))
@@ -100,20 +112,20 @@ export default function JobBoard({
         }
       })
       .catch(() => {
-        /* ignore — board still works, just no saved statuses */
+        /* ignore — board still works */
       });
-    fetch("/api/search-config")
+    fetch("/api/highpay-config")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.config) setConfig(data.config);
+        if (typeof data?.companies === "number") setCompanyCount(data.companies);
       })
       .catch(() => {
-        /* ignore — fall back to default config display */
+        /* ignore — defaults shown */
       });
   }, []);
 
-  function setAct(job: Job, val: "" | FiledStatus) {
-    // Optimistic local update…
+  function setAct(job: BoardJob, val: "" | FiledStatus) {
     setStatus((prev) => {
       const next = { ...prev };
       if (val) next[job.url] = val;
@@ -132,29 +144,25 @@ export default function JobBoard({
       else delete next[job.url];
       return next;
     });
-    // Un-filing (Move back to Active / Unsave): make sure the job is in the
-    // visible pool so it shows in Active — it may not be in the latest pull
-    // (e.g. it's older than the freshness window), in which case it would
-    // otherwise vanish. Persist to the cache so it survives a browser refresh too.
     if (!val) {
       setJobs((prev) => (prev.some((x) => x.url === job.url) ? prev : [job, ...prev]));
     }
-    // …then persist to the account (synced across devices).
     fetch("/api/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: job.url, status: val, job }),
     }).catch(() => {
-      /* ignore network errors; local state already updated */
+      /* local state already updated */
     });
   }
 
   async function refresh() {
     setLoading(true);
     setError(null);
+    setNote(null);
     try {
-      const res = await fetch("/api/refresh", { method: "POST" });
-      const data = (await res.json()) as RefreshResponse & { error?: string };
+      const res = await fetch("/api/highpay-refresh", { method: "POST" });
+      const data = (await res.json()) as HighPayRefreshResponse;
       if (!res.ok && !data.jobs) {
         throw new Error(data.error || `Request failed (${res.status})`);
       }
@@ -162,8 +170,16 @@ export default function JobBoard({
         setJobs(data.jobs);
         setRefreshedAt(data.refreshedAt);
         if (data.config) setConfig(data.config);
-        // The server already saved this snapshot to the user's account (MongoDB),
-        // so every device picks it up on next load — no per-device cache needed.
+        if (data.stats) {
+          const s = data.stats;
+          const bits = [
+            `${s.matched} of ${s.raw} LinkedIn postings are from your ${s.companies} high-pay companies`,
+            `${s.batchesOk}/${s.batches} company batches returned`,
+          ];
+          if (s.fallback) bits.push("used the broad-search fallback");
+          if (s.partial) bits.push("some batches timed out — try a smaller batch size");
+          setNote(bits.join(" · "));
+        }
       }
       if (data.error) setError(data.error);
     } catch (e) {
@@ -173,7 +189,6 @@ export default function JobBoard({
     }
   }
 
-  // dynamic filter option sets, derived from the current jobs
   const { topLang, topInfra } = useMemo(() => {
     const langSet = new Set<string>();
     const infraSet = new Set<string>();
@@ -187,25 +202,34 @@ export default function JobBoard({
     };
   }, [jobs]);
 
-  function toggle(setter: React.Dispatch<React.SetStateAction<Set<string>>>, val: string) {
+  const catsPresent = useMemo(() => {
+    const present = new Set<HighPayCat>();
+    jobs.forEach((j) => j.hp && present.add(j.hp.cat));
+    return ALL_CATS.filter((c) => present.has(c));
+  }, [jobs]);
+
+  function toggle<T>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, val: T) {
     setter((prev) => {
       const next = new Set(prev);
-      next.has(val) ? next.delete(val) : next.add(val);
+      if (next.has(val)) next.delete(val);
+      else next.add(val);
       return next;
     });
   }
 
-  function expBonus(j: Job) {
+  function expBonus(j: BoardJob) {
     if (j.exp == null) return 4;
     return Math.max(0, 12 - 3 * Math.abs(j.exp - exp));
   }
-  function isExpFit(j: Job) {
+  function isExpFit(j: BoardJob) {
     return j.exp != null && Math.abs(j.exp - exp) <= 1.5;
   }
-  function searchHay(j: Job) {
+  function searchHay(j: BoardJob) {
     return `${j.t} ${j.c} ${j.loc} ${j.sen} ${j.lang.join(" ")} ${j.infra.join(" ")}`.toLowerCase();
   }
-  function passes(j: Job) {
+  function passes(j: BoardJob) {
+    if (tier.size && !(j.hp && tier.has(j.hp.t))) return false;
+    if (cat.size && !(j.hp && cat.has(j.hp.cat))) return false;
     if (ai && !j.ai) return false;
     if (remote && j.mode !== "Remote") return false;
     if (strong && j.score < 80) return false;
@@ -218,41 +242,46 @@ export default function JobBoard({
   }
 
   const list = useMemo(() => {
-    let l: Job[];
+    let l: BoardJob[];
     if (view === "active") {
       l = jobs.filter((j) => !status[j.url] && passes(j));
     } else {
-      // Union current pull + archived filed jobs (fresh copy wins) so filed jobs
-      // always appear in their tab, even after a refresh that no longer returns them.
-      const byUrl = new Map<string, Job>();
-      Object.values(archive).forEach((j) => byUrl.set(j.url, j));
+      // Filed tabs on this board show only jobs from high-pay companies, so the
+      // shared archive is narrowed to entries that carry radar metadata (or are
+      // still present in the current high-pay pull).
+      const inPull = new Set(jobs.map((j) => j.url));
+      const byUrl = new Map<string, BoardJob>();
+      Object.values(archive).forEach((j) => {
+        if (j.hp || inPull.has(j.url)) byUrl.set(j.url, j);
+      });
       jobs.forEach((j) => byUrl.set(j.url, j));
       l = Array.from(byUrl.values()).filter(
         (j) => status[j.url] === view && (!q || searchHay(j).includes(q)),
       );
     }
     if (view !== "active") {
-      // Filed tabs: Recent (most recently filed first) or A–Z by title.
-      if (filedSort === "alpha") {
-        l = [...l].sort((a, b) => a.t.localeCompare(b.t));
-      } else {
-        l = [...l].sort((a, b) => (filedAt[b.url] ?? 0) - (filedAt[a.url] ?? 0));
-      }
+      if (filedSort === "alpha") l = [...l].sort((a, b) => a.t.localeCompare(b.t));
+      else l = [...l].sort((a, b) => (filedAt[b.url] ?? 0) - (filedAt[a.url] ?? 0));
     } else if (sort === "new") {
       l = [...l].sort((a, b) => b.iso.localeCompare(a.iso) || b.score - a.score);
+    } else if (sort === "band") {
+      l = [...l].sort(
+        (a, b) => (b.hp?.t ?? 0) - (a.hp?.t ?? 0) || b.score + expBonus(b) - (a.score + expBonus(a)),
+      );
     } else {
       l = [...l].sort((a, b) => b.score + expBonus(b) - (a.score + expBonus(a)));
     }
     return l;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, archive, status, view, q, sen, lang, infra, ai, remote, strong, exp, expFilter, sort, filedSort, filedAt]);
+  }, [jobs, archive, status, view, q, tier, cat, sen, lang, infra, ai, remote, strong, exp, expFilter, sort, filedSort, filedAt]);
 
   const active = useMemo(() => jobs.filter((j) => !status[j.url]), [jobs, status]);
   const counts = {
     total: active.length,
+    top: active.filter((j) => j.hp?.t === 3).length,
     strong: active.filter((j) => j.score >= 80).length,
     remote: active.filter((j) => j.mode === "Remote").length,
-    active: active.length,
+    companies: new Set(active.map((j) => j.hp?.n ?? j.c)).size,
     applied: Object.values(status).filter((v) => v === "applied").length,
     saved: Object.values(status).filter((v) => v === "saved").length,
     not: Object.values(status).filter((v) => v === "notinterested").length,
@@ -260,6 +289,8 @@ export default function JobBoard({
 
   function reset() {
     setQ("");
+    setTier(new Set());
+    setCat(new Set());
     setSen(new Set());
     setLang(new Set());
     setInfra(new Set());
@@ -268,21 +299,7 @@ export default function JobBoard({
     setStrong(false);
     setExp(CANDIDATE_EXP);
     setExpFilter(false);
-    setSort("match");
-  }
-
-  // Stat-pill actions — clicking a pill jumps to the Active set and applies its filter.
-  function showAllRoles() {
-    reset();
-    setView("active");
-  }
-  function toggleStrong() {
-    setView("active");
-    setStrong((v) => !v);
-  }
-  function toggleRemotePill() {
-    setView("active");
-    setRemote((v) => !v);
+    setSort("band");
   }
 
   return (
@@ -290,28 +307,51 @@ export default function JobBoard({
       {/* ---------- header ---------- */}
       <header className="mb-[18px] flex flex-wrap items-center justify-between gap-[14px]">
         <div>
+          <div className="mb-[3px] flex items-center gap-2">
+            <span className="rounded-full bg-brand-soft px-[9px] py-[3px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-brand">
+              💰 High Pay
+            </span>
+            <Link href="/" className="text-[11.5px] font-semibold text-muted hover:text-brand">
+              ← all roles
+            </Link>
+          </div>
           <h1 className="m-0 text-[21px] font-bold tracking-[-0.01em]">
-            Find the right role...Faster.
+            Only the companies that pay.
           </h1>
           <p className="mt-[3px] text-[12.5px] text-muted">
-            LinkedIn roles posted in the last {FRESHNESS_LABEL[config.freshness]} ·{" "}
-            {config.locations.join(" / ")} · matched to {config.roles.map((r) => r.title).join(", ")}{" "}
-            · refreshed {fmtRefreshed(refreshedAt)}
+            LinkedIn roles from the{" "}
+            <b className="text-ink">{companyCount ?? "195"} High Pay Radar companies</b>, posted in
+            the last {FRESHNESS_LABEL[config.freshness]} · {config.locations.join(" / ")} · refreshed{" "}
+            {fmtRefreshed(refreshedAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Pill onClick={showAllRoles} title="Show all active roles">
-            📋 <b className="text-brand">{counts.total}</b> roles
+          <Pill onClick={reset} title="Show every high-pay role">
+            💼 <b className="text-brand">{counts.total}</b> roles
           </Pill>
-          <Pill on={strong} onClick={toggleStrong} title="Filter to strong matches (score ≥ 80)">
-            🎯 <b className={strong ? "text-white" : "text-brand"}>{counts.strong}</b> strong matches
+          <Pill
+            on={tier.has(3)}
+            onClick={() => {
+              setView("active");
+              toggle(setTier, 3 as HighPayTier);
+            }}
+            title="Only ₹50L+ band companies"
+          >
+            🏆 <b className={tier.has(3) ? "text-white" : "text-brand"}>{counts.top}</b> ₹50L+
           </Pill>
-          <Pill on={remote} onClick={toggleRemotePill} title="Filter to remote roles">
-            🟢 <b className={remote ? "text-white" : "text-brand"}>{counts.remote}</b> remote
+          <Pill
+            on={strong}
+            onClick={() => {
+              setView("active");
+              setStrong((v) => !v);
+            }}
+            title="Filter to strong matches (score ≥ 80)"
+          >
+            🎯 <b className={strong ? "text-white" : "text-brand"}>{counts.strong}</b> strong
           </Pill>
           <div className="ml-1 flex gap-[6px]">
             <Tab on={view === "active"} onClick={() => setView("active")}>
-              Active<TabNum on={view === "active"}>{counts.active}</TabNum>
+              Active<TabNum on={view === "active"}>{counts.total}</TabNum>
             </Tab>
             <Tab on={view === "applied"} onClick={() => setView("applied")}>
               ✓ Applied<TabNum on={view === "applied"}>{counts.applied}</TabNum>
@@ -323,19 +363,9 @@ export default function JobBoard({
               🚫 Not interested<TabNum on={view === "notinterested"}>{counts.not}</TabNum>
             </Tab>
           </div>
-          {/* High Pay board — a separate, company-filtered view. Opens its own
-              page; nothing about this board's search or data changes. */}
-          <Link
-            href="/highpay"
-            title="Only roles from the High Pay Radar companies"
-            className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-brand bg-brand-soft px-[12px] py-[7px] text-xs font-bold text-brand shadow-card transition hover:bg-brand hover:text-white"
-          >
-            💰 High Pay
-          </Link>
           <button
             onClick={() => setShowSettings(true)}
-            title="Search settings (location, freshness, roles)"
-            aria-label="Search settings"
+            title="High Pay search settings (companies, roles, freshness)"
             className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-[12px] py-[7px] text-xs font-semibold shadow-card transition hover:border-brand"
           >
             ⚙︎ Settings
@@ -348,7 +378,7 @@ export default function JobBoard({
             {loading ? (
               <>
                 <span className="inline-block h-[13px] w-[13px] animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                Refreshing…
+                Scanning…
               </>
             ) : (
               <>↻ Refresh</>
@@ -357,11 +387,18 @@ export default function JobBoard({
         </div>
       </header>
 
-      {/* ---------- error toast ---------- */}
       {error && (
         <div className="mb-3 flex items-start justify-between gap-3 rounded-[10px] border border-line bg-red-soft px-[14px] py-[10px] text-[12.5px] font-semibold text-red-ink">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)} className="font-bold text-red-ink">
+            ✕
+          </button>
+        </div>
+      )}
+      {note && (
+        <div className="mb-3 flex items-start justify-between gap-3 rounded-[10px] border border-line bg-panel-2 px-[14px] py-[9px] text-[12px] text-muted">
+          <span>ℹ️ {note}</span>
+          <button onClick={() => setNote(null)} className="font-bold text-muted">
             ✕
           </button>
         </div>
@@ -385,16 +422,39 @@ export default function JobBoard({
           value={q}
           onChange={(e) => setQ(e.target.value.toLowerCase().trim())}
           type="text"
-          placeholder="Search title, company, skill or location…"
+          placeholder="Search company, title, skill or location…"
           className="w-full border-0 bg-transparent text-[14.5px] text-ink outline-none"
         />
       </div>
 
       {/* ---------- layout ---------- */}
       <div className="grid grid-cols-1 items-start gap-[18px] md:grid-cols-[266px_1fr]">
-        {/* sidebar */}
         <aside className="rounded-[14px] border border-line bg-panel p-4 shadow-card md:sticky md:top-[14px]">
           <FGroup first>
+            <H3>Pay band</H3>
+            <Opts>
+              {ALL_TIERS.map((t) => (
+                <Opt key={t} on={tier.has(t)} onClick={() => toggle(setTier, t)}>
+                  {TIER_LABEL[t]}
+                </Opt>
+              ))}
+            </Opts>
+          </FGroup>
+
+          {catsPresent.length > 0 && (
+            <FGroup>
+              <H3>Sector</H3>
+              <Opts>
+                {catsPresent.map((c) => (
+                  <Opt key={c} on={cat.has(c)} onClick={() => toggle(setCat, c)}>
+                    {CAT_LABEL[c]}
+                  </Opt>
+                ))}
+              </Opts>
+            </FGroup>
+          )}
+
+          <FGroup>
             <H3>Years of experience</H3>
             <div className="mt-[6px] text-[13px]">
               Showing fit for <span className="font-bold text-brand">{exp}</span> years
@@ -423,7 +483,7 @@ export default function JobBoard({
             <H3>Seniority</H3>
             <Opts>
               {SEN_ORDER.map((s) => (
-                <Opt key={s} on={sen.has(s)} onClick={() => toggle(setSen, s)}>
+                <Opt key={s} on={sen.has(s)} onClick={() => toggle<string>(setSen, s)}>
                   {s}
                 </Opt>
               ))}
@@ -469,16 +529,21 @@ export default function JobBoard({
           </button>
         </aside>
 
-        {/* main */}
         <main>
           <div className="mb-[13px] flex flex-wrap items-center justify-between gap-3">
             <div className="text-[13px] text-muted">
               <b className="text-ink">{list.length}</b> of{" "}
               {view === "active" ? active.length : list.length} roles
+              {view === "active" && counts.companies > 0 && (
+                <> · {counts.companies} companies hiring</>
+              )}
             </div>
             <div className="flex gap-[6px] rounded-[10px] border border-line bg-panel p-1 shadow-card">
               {view === "active" ? (
                 <>
+                  <SortBtn on={sort === "band"} onClick={() => setSort("band")}>
+                    💰 Pay band
+                  </SortBtn>
                   <SortBtn on={sort === "match"} onClick={() => setSort("match")}>
                     ★ Best match
                   </SortBtn>
@@ -504,26 +569,24 @@ export default function JobBoard({
               <div className="col-span-full px-5 py-[60px] text-center text-muted">
                 <b className="mb-[6px] block text-[16px] text-ink">
                   {view === "applied"
-                    ? "No jobs marked Applied yet"
+                    ? "No high-pay jobs marked Applied yet"
                     : view === "saved"
-                      ? "No saved jobs yet"
+                      ? "No saved high-pay jobs yet"
                       : view === "notinterested"
                         ? "Nothing marked Not interested"
                         : jobs.length === 0
-                          ? "No jobs loaded yet"
+                          ? "No high-pay roles loaded yet"
                           : "No roles match these filters"}
                 </b>
                 {view === "active"
                   ? jobs.length === 0
-                    ? "Hit Refresh to pull the latest LinkedIn roles."
-                    : "Try widening seniority, clearing skills, or moving the experience slider."
-                  : view === "saved"
-                    ? "Tap 🔖 Save on a card to keep it here. Saved jobs stay until you unsave them and never reappear in Active after a refresh."
-                    : "Use the ✓ Applied / 🔖 Saved / 🚫 Not interested buttons on a card to file it here. Filed jobs stay hidden from Active even after the board refreshes."}
+                    ? "Hit Refresh to scan the High Pay Radar companies on LinkedIn."
+                    : "Try widening the pay band, clearing sectors, or stretching the freshness window in Settings — top companies post less often."
+                  : "Applied / Saved / Not interested are shared with the main OpenRoles board."}
               </div>
             ) : (
               list.map((j) => (
-                <JobCard
+                <HighPayCard
                   key={j.url}
                   j={j}
                   fit={isExpFit(j)}
@@ -537,19 +600,29 @@ export default function JobBoard({
           </div>
 
           <div className="mt-[30px] text-center text-[11.5px] leading-[1.6] text-muted">
-            Data pulled live from LinkedIn via the Apify <i>valig/linkedin-jobs-scraper</i> actor
-            (India, last 24 hours). Match scores &amp; experience parsing are heuristic estimates
-            based on your profile — always read the full posting before applying.
+            Company shortlist from{" "}
+            <a
+              href="https://github.com/fiercearyan/HighPayRadar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand"
+            >
+              High Pay Radar
+            </a>{" "}
+            · jobs pulled live from LinkedIn via the Apify <i>valig/linkedin-jobs-scraper</i> actor.
+            Pay bands are the radar&apos;s market estimates for a 3–5 yr backend engineer, not the
+            posting&apos;s stated salary — always confirm with the recruiter.
           </div>
         </main>
       </div>
 
       {showSettings && (
-        <SearchSettings
+        <HighPaySettings
           initial={config}
           onClose={() => setShowSettings(false)}
-          onSaved={(next, doRefresh) => {
+          onSaved={(next, companies, doRefresh) => {
             setConfig(next);
+            setCompanyCount(companies);
             setShowSettings(false);
             if (doRefresh) refresh();
           }}
@@ -584,7 +657,6 @@ function Pill({
     </button>
   );
 }
-
 function Tab({
   on,
   onClick,
@@ -606,17 +678,18 @@ function Tab({
   );
 }
 function TabNum({ on, children }: { on: boolean; children: React.ReactNode }) {
-  return <span className={`ml-[2px] font-bold ${on ? "text-white/90" : "text-muted"}`}>{children}</span>;
-}
-
-function H3({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="m-0 mb-1 text-[11px] uppercase tracking-[0.06em] text-muted">{children}</h3>
+    <span className={`ml-[2px] font-bold ${on ? "text-white/90" : "text-muted"}`}>{children}</span>
   );
+}
+function H3({ children }: { children: React.ReactNode }) {
+  return <h3 className="m-0 mb-1 text-[11px] uppercase tracking-[0.06em] text-muted">{children}</h3>;
 }
 function FGroup({ children, first }: { children: React.ReactNode; first?: boolean }) {
   return (
-    <div className={`border-b border-line py-[13px] last:border-b-0 last:pb-0 ${first ? "pt-0" : ""}`}>
+    <div
+      className={`border-b border-line py-[13px] last:border-b-0 last:pb-0 ${first ? "pt-0" : ""}`}
+    >
       {children}
     </div>
   );
@@ -683,7 +756,7 @@ function SortBtn({
 
 /* ------------------------------- job card -------------------------------- */
 
-function JobCard({
+function HighPayCard({
   j,
   fit,
   exp,
@@ -691,12 +764,12 @@ function JobCard({
   status,
   onAct,
 }: {
-  j: Job;
+  j: BoardJob;
   fit: boolean;
   exp: number;
   view: View;
   status?: FiledStatus;
-  onAct: (job: Job, val: "" | FiledStatus) => void;
+  onAct: (job: BoardJob, val: "" | FiledStatus) => void;
 }) {
   return (
     <div
@@ -707,13 +780,38 @@ function JobCard({
       <div className="flex items-start justify-between gap-[10px]">
         <div>
           <h2 className="m-0 text-[15.5px] font-bold leading-[1.25] tracking-[-0.01em]">{j.t}</h2>
-          <p className="mt-1 text-[13px] font-semibold text-sslate">{j.c}</p>
+          <p className="mt-1 text-[13px] font-semibold text-sslate">
+            {j.c}
+            {j.hp && j.hp.n.toLowerCase() !== j.c.toLowerCase() && (
+              <span className="font-normal text-muted"> · {j.hp.n}</span>
+            )}
+          </p>
         </div>
-        <div className={`score ${scoreClass(j.score)} min-w-[54px] flex-none rounded-[11px] px-[9px] py-[7px] text-center`}>
+        <div
+          className={`score ${scoreClass(j.score)} min-w-[54px] flex-none rounded-[11px] px-[9px] py-[7px] text-center`}
+        >
           <b className="block text-[17px] font-extrabold leading-none">{j.score}</b>
           <small className="text-[9px] uppercase tracking-[0.05em] opacity-80">match</small>
         </div>
       </div>
+
+      {j.hp && (
+        <div className="mt-[10px] flex flex-wrap items-center gap-[7px] rounded-[10px] border border-line bg-panel-2 px-[10px] py-[7px]">
+          <span className="text-[13px] font-extrabold text-brand">{j.hp.p}</span>
+          <span className="text-[11px] font-semibold text-muted">
+            {TIER_LABEL[j.hp.t]} band · {CAT_LABEL[j.hp.cat]}
+          </span>
+          <a
+            href={j.hp.u}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto text-[11px] font-bold text-muted hover:text-brand"
+            title="Company careers page"
+          >
+            careers ↗
+          </a>
+        </div>
+      )}
 
       <div className="my-[11px] flex flex-wrap gap-[7px]">
         <span className="tag loc">📍 {j.loc}</span>
@@ -799,7 +897,11 @@ function JobCard({
                     : "bg-red-soft text-red-ink"
               }`}
             >
-              {status === "applied" ? "✓ Applied" : status === "saved" ? "🔖 Saved" : "🚫 Not interested"}
+              {status === "applied"
+                ? "✓ Applied"
+                : status === "saved"
+                  ? "🔖 Saved"
+                  : "🚫 Not interested"}
             </span>
             {status === "saved" && (
               <button

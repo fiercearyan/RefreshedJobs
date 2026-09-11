@@ -51,6 +51,8 @@ app/
   api/refresh/route.ts    POST/GET — auth-gated; runs the user's role×location searches, scores,
                           caches, and saves the snapshot to MongoDB
   api/search-config/route.ts  GET/POST — read/update the user's location/freshness/roles
+  api/highpay-refresh/route.ts  POST/GET — High Pay board: company-scoped LinkedIn scan
+  api/highpay-config/route.ts   GET/POST — the High Pay board's own search settings
   api/status/route.ts     GET/POST — per-user Applied/Saved/Not-interested (+ filed timestamps)
   api/notifications/route.ts  POST — mark saved-job reminders read
   api/profile/route.ts    GET/POST — phone + encrypted Apify key
@@ -58,6 +60,7 @@ app/
   api/health/route.ts     public env diagnostic (booleans only, no secrets)
   signin/page.tsx         Google sign-in screen
   profile/page.tsx        profile: counts, phone, Apify key, sign out
+  highpay/page.tsx        High Pay board — reads the user's highPaySnapshot from MongoDB
   page.tsx                server component — reads the user's jobs snapshot from MongoDB
   layout.tsx              SessionProvider + navbar + no-flash theme script
   icon.svg                favicon (OpenRoles logo)
@@ -65,6 +68,8 @@ app/
 components/
   JobBoard.tsx            the full board (header, filters, cards, tabs, refresh, settings)
   SearchSettings.tsx      the Settings modal (locations, freshness, roles)
+  HighPayBoard.tsx        High Pay board (pay-band filters, radar badges, own refresh)
+  HighPaySettings.tsx     High Pay settings modal (bands, sectors, titles, run budget)
   Navbar.tsx              global navbar + theme toggle
   NotificationBell.tsx    saved-job reminder bell (12h, red dot, read-on-open)
   Logo.tsx                inline SVG logo
@@ -79,6 +84,13 @@ lib/
   mongodb.ts              shared MongoClient promise
   users.ts                user-doc helpers (profile, Apify key, snapshot, config)
   userJobs.ts             userJobs collection (filed jobs) + idempotent migration
+  highPayCompanies.ts     High Pay Radar dataset (195 companies) + alias/name matching
+  highPayConfig.ts        High Pay search config: defaults, caps, validation
+  highPayApify.ts         batched company-scoped Apify searches (deadline-guarded)
+  highPayNormalize.ts     reuses normalize/scoring, then keeps only radar companies
+  highPayUser.ts          highPayConfig + highPaySnapshot on the user doc
+  highPayCache.ts         in-memory High Pay snapshot cache
+  highPayTypes.ts         HighPayJob / refresh response types
   crypto.ts               AES-256-GCM encrypt/decrypt for the Apify key
   types.ts                shared types
 middleware.ts             protects all pages behind sign-in
@@ -161,6 +173,33 @@ everything fails but a cached snapshot exists, the cached data is returned with 
 > Cost note: results = up to `5 roles × 2 locations` Apify runs per refresh. More roles/locations =
 > more credits and longer refreshes; the caps keep it within the 60s budget.
 
+## The High Pay board (`/highpay`)
+
+A second, **completely separate** board for the phase where only top-paying employers are worth a
+switch. The 💰 High Pay button in the main board's header opens it; nothing about the normal board's
+search, config, scoring or snapshot changes.
+
+- **Company list** — a snapshot of [High Pay Radar](https://github.com/fiercearyan/HighPayRadar)'s
+  195 curated companies (₹25L+ for a 3–5 yr backend engineer), in `lib/highPayCompanies.ts` with
+  tier (₹25–35L / ₹35–50L / ₹50L+), pay band, sector and careers URL.
+- **Still LinkedIn-only** — same `valig/linkedin-jobs-scraper` actor, same per-user Apify key. The
+  company list is pushed into the actor's `companyName` filter, so the search itself is scoped to
+  those employers instead of filtering a broad pull afterwards.
+- **Batched runs** — the ~264 company names (radar names + parent-brand aliases such as
+  `Optum → UnitedHealth Group`) are split into batches (default 45 names ⇒ 6 runs) that fire in
+  parallel under a 52s deadline, inside the route's `maxDuration = 60`. Slow or failed batches are
+  dropped, never fatal; the board reports `batchesOk/batches` after each scan.
+- **Its own settings** — pay bands, sectors, locations, freshness (defaults to 7d — top payers post
+  far less often), title phrases and the Apify run budget, saved per user as `highPayConfig`.
+  Snapshot is saved separately as `highPaySnapshot`.
+- **Shared filing** — Applied / Saved / Not interested use the same `/api/status` store, so a job
+  filed on either board stays filed on both.
+- **Match scoring is unchanged** — the same `lib/scoring.ts` heuristics, so scores are comparable
+  across the two boards. Pay bands are High Pay Radar's market estimates, not the posting's salary.
+
+> Cost note: one refresh ≈ `ceil(names / batchSize) × locations` Apify runs (default 6), capped by
+> `maxBatches`. Narrow the pay bands or sectors in Settings to spend less.
+
 ## Deploy to GitHub + Vercel
 
 1. **Push to GitHub:**
@@ -190,6 +229,7 @@ Work happens on `vX-dev` branches, merged into `main` and tagged once verified i
 | v3.4   | Fixed exp filter, cross-device jobs-snapshot sync via MongoDB, favicon + tab title        |
 | v4.0   | In-app saved-job notification bell — 12h reminders, red dot, read-on-open, 12h re-fire     |
 | v4.1   | Filed jobs moved from the user doc into a dedicated `userJobs` collection (safe migration) |
+| v4.2   | High Pay board (`/highpay`): LinkedIn roles restricted to the High Pay Radar companies     |
 
 > **v4.1 migration:** filed jobs now live in `userJobs` instead of an embedded `jobStatus[]`. Each
 > user is migrated automatically on their next board load (idempotent, insert-if-absent, old field
