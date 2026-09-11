@@ -16,12 +16,15 @@ import {
 import {
   HP_BATCH_MAX,
   HP_BATCH_MIN,
+  HP_CONCURRENCY_MAX,
+  HP_CONCURRENCY_MIN,
   HP_LIMIT_MAX,
   HP_LIMIT_MIN,
   HP_MAX_BATCHES_MAX,
   HP_MAX_BATCHES_MIN,
   MAX_HP_LOCATIONS,
   MAX_HP_TITLES,
+  DEFAULT_HIGH_PAY_CONFIG,
   type HighPayConfig,
 } from "@/lib/highPayConfig";
 
@@ -45,6 +48,9 @@ export default function HighPaySettings({
   const [batchSize, setBatchSize] = useState(initial.batchSize);
   const [limit, setLimit] = useState(initial.limit);
   const [maxBatches, setMaxBatches] = useState(initial.maxBatches);
+  const [concurrency, setConcurrency] = useState(
+    initial.concurrency ?? DEFAULT_HIGH_PAY_CONFIG.concurrency,
+  );
   const [fallbackBroad, setFallbackBroad] = useState(initial.fallbackBroad);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -61,6 +67,7 @@ export default function HighPaySettings({
     Math.ceil(nameCount / Math.max(1, batchSize)) * locCount,
   );
   const coveredNames = Math.min(nameCount, Math.ceil(plannedRuns / locCount) * batchSize);
+  const scansForFullSweep = Math.max(1, Math.ceil(nameCount / Math.max(1, coveredNames)));
 
   function toggleTier(t: HighPayTier) {
     setTiers((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -93,6 +100,7 @@ export default function HighPaySettings({
           batchSize,
           limit,
           maxBatches,
+          concurrency,
           fallbackBroad,
         }),
       });
@@ -171,14 +179,10 @@ export default function HighPaySettings({
         </div>
         <p className="mb-4 text-[11.5px] text-muted">
           <b className="text-ink">{inScope}</b> of {HIGH_PAY_COMPANIES.length} High Pay Radar
-          companies selected ({nameCount} company names incl. parent brands) · ~{plannedRuns}{" "}
-          LinkedIn searches per refresh, covering {coveredNames} of those names.
-          {coveredNames < nameCount && (
-            <span className="text-red-ink">
-              {" "}
-              Raise the run cap or batch size to cover the rest.
-            </span>
-          )}
+          companies selected ({nameCount} names incl. parent brands) · each scan covers about{" "}
+          {coveredNames} of them across ~{plannedRuns} LinkedIn searches
+          {scansForFullSweep > 1 && <>, so ~{scansForFullSweep} scans sweep the whole list</>}. The
+          next scan resumes where the last one stopped, and results accumulate on the board.
         </p>
 
         {/* locations */}
@@ -286,7 +290,7 @@ export default function HighPaySettings({
           <summary className="cursor-pointer text-[12px] font-bold text-sslate">
             Advanced — Apify run budget
           </summary>
-          <div className="mt-3 grid grid-cols-3 gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Num
               label="Batch size"
               hint="companies / run"
@@ -297,11 +301,19 @@ export default function HighPaySettings({
             />
             <Num
               label="Max runs"
-              hint="per refresh"
+              hint="per scan"
               value={maxBatches}
               min={HP_MAX_BATCHES_MIN}
               max={HP_MAX_BATCHES_MAX}
               onChange={setMaxBatches}
+            />
+            <Num
+              label="Runs at once"
+              hint="Apify allows 5"
+              value={concurrency}
+              min={HP_CONCURRENCY_MIN}
+              max={HP_CONCURRENCY_MAX}
+              onChange={setConcurrency}
             />
             <Num
               label="Result cap"
@@ -321,9 +333,11 @@ export default function HighPaySettings({
             If the company-scoped scan finds nothing, retry once without it and filter locally
           </label>
           <p className="mt-2 text-[11px] leading-[1.5] text-muted">
-            Each run is one LinkedIn search on Apify. All runs fire in parallel under a 52-second
-            deadline; anything still running when the deadline hits is dropped and the board shows
-            what came back. Lower the batch size if you see &quot;some batches timed out&quot;.
+            Each run is one LinkedIn search on Apify. Runs go out &quot;Runs at once&quot; at a time
+            under a 50-second deadline — Apify free plans allow <b>5 concurrent Actor runs in
+            total</b>, so leaving headroom here avoids a 402 when the main board is also refreshing.
+            Smaller batches finish more reliably; the scan just resumes from where it stopped next
+            time.
           </p>
         </details>
 

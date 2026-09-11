@@ -173,11 +173,15 @@ export default function HighPayBoard({
         if (data.stats) {
           const s = data.stats;
           const bits = [
-            `${s.matched} of ${s.raw} LinkedIn postings are from your ${s.companies} high-pay companies`,
-            `${s.batchesOk}/${s.batches} company batches returned`,
+            `+${s.added} new · ${s.total} roles on the board`,
+            `scanned ${s.namesScanned} of ${s.totalNames} companies this pass (${s.batchesOk}/${s.batches} searches, ${s.matched}/${s.raw} postings kept)`,
           ];
+          if (s.namesScanned < s.totalNames) {
+            bits.push("hit Refresh again to continue where this scan stopped");
+          }
           if (s.fallback) bits.push("used the broad-search fallback");
-          if (s.partial) bits.push("some batches timed out — try a smaller batch size");
+          if (s.concurrencyHit) bits.push("Apify's concurrent-run limit was hit — lower “Runs at once”");
+          else if (s.partial) bits.push("a search ran out of time — lower the batch size");
           setNote(bits.join(" · "));
         }
       }
@@ -323,6 +327,11 @@ export default function HighPayBoard({
             <b className="text-ink">{companyCount ?? "195"} High Pay Radar companies</b>, posted in
             the last {FRESHNESS_LABEL[config.freshness]} · {config.locations.join(" / ")} · refreshed{" "}
             {fmtRefreshed(refreshedAt)}
+            <br />
+            <span className="text-[11.5px]">
+              Each scan sweeps a slice of the company list and adds to the board — keep hitting
+              Refresh to work through all of them.
+            </span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

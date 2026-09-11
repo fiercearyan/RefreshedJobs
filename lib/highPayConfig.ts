@@ -22,6 +22,9 @@ export interface HighPayConfig {
   batchSize: number; // companies per Apify run
   limit: number; // result cap per Apify run
   maxBatches: number; // hard cap on Apify runs per refresh
+  /** How many Apify runs may be in flight at once. Apify free plans allow 5
+   *  concurrent Actor runs in total, so keep headroom for the normal board. */
+  concurrency: number;
   /** If the company-scoped search returns nothing, retry once without the
    *  company filter and keep only high-pay companies locally. */
   fallbackBroad: boolean;
@@ -32,12 +35,14 @@ export const MAX_HP_TITLES = 6;
 export const MAX_HP_TITLE_LEN = 60;
 export const MAX_HP_LOCATION_LEN = 80;
 
-export const HP_BATCH_MIN = 10;
-export const HP_BATCH_MAX = 60;
+export const HP_BATCH_MIN = 5;
+export const HP_BATCH_MAX = 40;
 export const HP_LIMIT_MIN = 10;
 export const HP_LIMIT_MAX = 200;
 export const HP_MAX_BATCHES_MIN = 1;
-export const HP_MAX_BATCHES_MAX = 10;
+export const HP_MAX_BATCHES_MAX = 20;
+export const HP_CONCURRENCY_MIN = 1;
+export const HP_CONCURRENCY_MAX = 5;
 
 export const DEFAULT_HIGH_PAY_CONFIG: HighPayConfig = {
   locations: ["India"],
@@ -54,9 +59,12 @@ export const DEFAULT_HIGH_PAY_CONFIG: HighPayConfig = {
   keywords: "",
   tiers: [...ALL_TIERS],
   cats: [...ALL_CATS],
-  batchSize: 45,
-  limit: 100,
+  // Small batches finish inside the request window; the scan rotates through
+  // the company list across refreshes rather than trying to do it all at once.
+  batchSize: 12,
+  limit: 60,
   maxBatches: 8,
+  concurrency: 3,
   fallbackBroad: true,
 };
 
@@ -122,6 +130,7 @@ export function sanitizeHighPayConfig(input: unknown): HighPayConfig {
     batchSize: clampInt(obj.batchSize, HP_BATCH_MIN, HP_BATCH_MAX, d.batchSize),
     limit: clampInt(obj.limit, HP_LIMIT_MIN, HP_LIMIT_MAX, d.limit),
     maxBatches: clampInt(obj.maxBatches, HP_MAX_BATCHES_MIN, HP_MAX_BATCHES_MAX, d.maxBatches),
+    concurrency: clampInt(obj.concurrency, HP_CONCURRENCY_MIN, HP_CONCURRENCY_MAX, d.concurrency),
     fallbackBroad: obj.fallbackBroad === undefined ? d.fallbackBroad : Boolean(obj.fallbackBroad),
   };
 }

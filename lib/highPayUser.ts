@@ -12,6 +12,8 @@ export interface HighPayUserDoc {
   email: string;
   highPayConfig?: HighPayConfig;
   highPaySnapshot?: { jobs: HighPayJob[]; refreshedAt: string };
+  /** Where the next refresh resumes scanning the company list (rotation). */
+  highPayCursor?: number;
 }
 
 async function col(): Promise<Collection<HighPayUserDoc>> {
@@ -21,7 +23,7 @@ async function col(): Promise<Collection<HighPayUserDoc>> {
 export async function getHighPayUser(email: string): Promise<HighPayUserDoc | null> {
   return (await col()).findOne(
     { email },
-    { projection: { email: 1, highPayConfig: 1, highPaySnapshot: 1 } },
+    { projection: { email: 1, highPayConfig: 1, highPaySnapshot: 1, highPayCursor: 1 } },
   );
 }
 
@@ -33,6 +35,10 @@ export async function saveHighPaySnapshot(
   email: string,
   jobs: HighPayJob[],
   refreshedAt: string,
+  cursor: number,
 ): Promise<void> {
-  await (await col()).updateOne({ email }, { $set: { highPaySnapshot: { jobs, refreshedAt } } });
+  await (await col()).updateOne(
+    { email },
+    { $set: { highPaySnapshot: { jobs, refreshedAt }, highPayCursor: cursor } },
+  );
 }
