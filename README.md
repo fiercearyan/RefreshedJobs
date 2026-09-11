@@ -89,7 +89,6 @@ lib/
   highPayApify.ts         batched company-scoped Apify searches (deadline-guarded)
   highPayNormalize.ts     reuses normalize/scoring, then keeps only radar companies
   highPayUser.ts          highPayConfig + highPaySnapshot on the user doc
-  highPayCache.ts         in-memory High Pay snapshot cache
   highPayTypes.ts         HighPayJob / refresh response types
   crypto.ts               AES-256-GCM encrypt/decrypt for the Apify key
   types.ts                shared types
@@ -185,10 +184,15 @@ search, config, scoring or snapshot changes.
 - **Still LinkedIn-only** — same `valig/linkedin-jobs-scraper` actor, same per-user Apify key. The
   company list is pushed into the actor's `companyName` filter, so the search itself is scoped to
   those employers instead of filtering a broad pull afterwards.
-- **Batched runs** — the ~264 company names (radar names + parent-brand aliases such as
-  `Optum → UnitedHealth Group`) are split into batches (default 45 names ⇒ 6 runs) that fire in
-  parallel under a 52s deadline, inside the route's `maxDuration = 60`. Slow or failed batches are
-  dropped, never fatal; the board reports `batchesOk/batches` after each scan.
+- **Asynchronous scan** — a company-scoped LinkedIn search on this actor routinely takes well over
+  a minute, which no serverless request can wait for. So `POST /api/highpay-refresh` *starts* a wave
+  of Apify runs (default 3 at a time, under Apify's 5-concurrent-run cap) and returns immediately;
+  `GET` collects whichever runs have finished, merges their results into the snapshot and reports
+  progress. The board polls until the wave lands, then launches the next one — closing the tab
+  doesn't cancel anything, the results are picked up next time it opens.
+- **Sweep cursor** — the ~264 company names (radar names + parent-brand aliases such as
+  `Optum → UnitedHealth Group`) are split into batches of 25; a per-user cursor remembers how far
+  the sweep got, so Scan always continues rather than re-scanning the same slice.
 - **Its own settings** — pay bands, sectors, locations, freshness (defaults to 7d — top payers post
   far less often), title phrases and the Apify run budget, saved per user as `highPayConfig`.
   Snapshot is saved separately as `highPaySnapshot`.
@@ -197,8 +201,9 @@ search, config, scoring or snapshot changes.
 - **Match scoring is unchanged** — the same `lib/scoring.ts` heuristics, so scores are comparable
   across the two boards. Pay bands are High Pay Radar's market estimates, not the posting's salary.
 
-> Cost note: one refresh ≈ `ceil(names / batchSize) × locations` Apify runs (default 6), capped by
-> `maxBatches`. Narrow the pay bands or sectors in Settings to spend less.
+> Cost note: a full sweep ≈ `ceil(names / batchSize) × locations` Apify runs (default ~11), and one
+> press of Scan launches at most `maxBatches` of them. Narrow the pay bands or sectors in Settings
+> to spend less.
 
 ## Deploy to GitHub + Vercel
 

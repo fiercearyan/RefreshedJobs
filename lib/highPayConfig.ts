@@ -10,7 +10,13 @@ import {
   type HighPayTier,
 } from "./highPayCompanies";
 
+/** Bumped whenever the run-budget defaults change in a way that should be
+ *  pushed to existing users (their band/sector/title choices are kept). */
+export const HIGH_PAY_CONFIG_VERSION = 2;
+
 export interface HighPayConfig {
+  /** Schema version — see HIGH_PAY_CONFIG_VERSION. */
+  v: number;
   locations: string[]; // 1–2 locations
   freshness: Freshness; // posted-within window
   /** Title phrases handed to the actor's titleInclude filter. */
@@ -21,7 +27,7 @@ export interface HighPayConfig {
   cats: HighPayCat[]; // which sectors to include
   batchSize: number; // companies per Apify run
   limit: number; // result cap per Apify run
-  maxBatches: number; // hard cap on Apify runs per refresh
+  maxBatches: number; // how many Apify runs one press of Scan may launch
   /** How many Apify runs may be in flight at once. Apify free plans allow 5
    *  concurrent Actor runs in total, so keep headroom for the normal board. */
   concurrency: number;
@@ -36,15 +42,16 @@ export const MAX_HP_TITLE_LEN = 60;
 export const MAX_HP_LOCATION_LEN = 80;
 
 export const HP_BATCH_MIN = 5;
-export const HP_BATCH_MAX = 40;
+export const HP_BATCH_MAX = 50;
 export const HP_LIMIT_MIN = 10;
 export const HP_LIMIT_MAX = 200;
 export const HP_MAX_BATCHES_MIN = 1;
-export const HP_MAX_BATCHES_MAX = 20;
+export const HP_MAX_BATCHES_MAX = 40;
 export const HP_CONCURRENCY_MIN = 1;
 export const HP_CONCURRENCY_MAX = 5;
 
 export const DEFAULT_HIGH_PAY_CONFIG: HighPayConfig = {
+  v: HIGH_PAY_CONFIG_VERSION,
   locations: ["India"],
   // Top-paying companies post far less often than the market at large, so the
   // default window is deliberately wider than the normal board's.
@@ -59,11 +66,11 @@ export const DEFAULT_HIGH_PAY_CONFIG: HighPayConfig = {
   keywords: "",
   tiers: [...ALL_TIERS],
   cats: [...ALL_CATS],
-  // Small batches finish inside the request window; the scan rotates through
-  // the company list across refreshes rather than trying to do it all at once.
-  batchSize: 12,
-  limit: 60,
-  maxBatches: 8,
+  // Runs are started and collected asynchronously, so a batch no longer has to
+  // fit inside one request — these sizes just balance credits against waves.
+  batchSize: 25,
+  limit: 100,
+  maxBatches: 20,
   concurrency: 3,
   fallbackBroad: true,
 };
@@ -120,17 +127,27 @@ export function sanitizeHighPayConfig(input: unknown): HighPayConfig {
   let cats = ALL_CATS.filter((c) => rawCats.includes(c));
   if (cats.length === 0) cats = [...d.cats];
 
+  // Configs written by an older version keep the user's company/role choices but
+  // take the current run-budget defaults, which are tuned to how the actor
+  // actually behaves.
+  const legacy = obj.v !== HIGH_PAY_CONFIG_VERSION;
+
   return {
+    v: HIGH_PAY_CONFIG_VERSION,
     locations,
     freshness,
     titles,
     keywords,
     tiers,
     cats,
-    batchSize: clampInt(obj.batchSize, HP_BATCH_MIN, HP_BATCH_MAX, d.batchSize),
-    limit: clampInt(obj.limit, HP_LIMIT_MIN, HP_LIMIT_MAX, d.limit),
-    maxBatches: clampInt(obj.maxBatches, HP_MAX_BATCHES_MIN, HP_MAX_BATCHES_MAX, d.maxBatches),
-    concurrency: clampInt(obj.concurrency, HP_CONCURRENCY_MIN, HP_CONCURRENCY_MAX, d.concurrency),
+    batchSize: legacy ? d.batchSize : clampInt(obj.batchSize, HP_BATCH_MIN, HP_BATCH_MAX, d.batchSize),
+    limit: legacy ? d.limit : clampInt(obj.limit, HP_LIMIT_MIN, HP_LIMIT_MAX, d.limit),
+    maxBatches: legacy
+      ? d.maxBatches
+      : clampInt(obj.maxBatches, HP_MAX_BATCHES_MIN, HP_MAX_BATCHES_MAX, d.maxBatches),
+    concurrency: legacy
+      ? d.concurrency
+      : clampInt(obj.concurrency, HP_CONCURRENCY_MIN, HP_CONCURRENCY_MAX, d.concurrency),
     fallbackBroad: obj.fallbackBroad === undefined ? d.fallbackBroad : Boolean(obj.fallbackBroad),
   };
 }

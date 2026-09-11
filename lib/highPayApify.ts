@@ -5,214 +5,224 @@ import { chunk, searchNames, selectCompanies, type HighPayCompany } from "./high
 
 // Same actor as the normal board — we only support LinkedIn jobs.
 const ACTOR = "valig~linkedin-jobs-scraper";
-const ENDPOINT = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items`;
+const BASE = "https://api.apify.com/v2";
 
-/** Leave headroom inside Vercel's 60s budget so we always answer with something. */
-export const DEADLINE_MS = 50_000;
-/** Don't start another run unless there's a realistic chance it finishes. */
-const MIN_RUN_MS = 13_000;
-/** Cap on a single run, so one slow batch can't eat the whole window. */
-const RUN_TIMEOUT_MS = 38_000;
-/** Apify free plans cap concurrent Actor runs (5). Back off and retry once. */
-const CONCURRENCY_BACKOFF_MS = 5_000;
+/** Hard cap on an Apify run, so an abandoned run can't burn credits for hours. */
+const RUN_TIMEOUT_SECS = 240;
+/** A run we've been tracking longer than this is given up on (and aborted). */
+export const RUN_GIVE_UP_MS = 5 * 60 * 1000;
 
-interface BatchInput {
+/** One in-flight Apify run we're waiting on, stored on the user document. */
+export interface HighPayRun {
+  id: string; // Apify run id
+  ds: string; // its default dataset id
+  loc: string; // location this run covers
+  names: number; // how many company names it covers
+  at: number; // epoch ms when we started it
+}
+
+export interface HighPayUnit {
   location: string;
-  names: string[] | null; // null = broad fallback search (no company filter)
+  names: string[];
+}
+
+/** The full scan plan: company batches × locations, in a stable order. */
+export function buildUnits(config: HighPayConfig): {
+  units: HighPayUnit[];
+  companies: HighPayCompany[];
+  names: string[];
+} {
+  const companies = selectCompanies(config.tiers, config.cats);
+  const names = searchNames(companies);
+  const groups = chunk(names, config.batchSize);
+  const units: HighPayUnit[] = [];
+  for (const g of groups) {
+    for (const location of config.locations) units.push({ location, names: g });
+  }
+  return { units, companies, names };
+}
+
+function actorInput(unit: HighPayUnit, config: HighPayConfig): Record<string, unknown> {
+  const seconds = FRESHNESS_SECONDS[config.freshness];
+  const input: Record<string, unknown> = {
+    location: unit.location,
+    limit: config.limit,
+    // f_TPR = "posted within N seconds" — finer than the actor's datePosted enum.
+    urlParam: [{ key: "f_TPR", value: `r${seconds}` }],
+    titleInclude: config.titles,
+  };
+  if (config.keywords) input.keywords = config.keywords;
+  if (unit.names.length) input.companyName = unit.names;
+  return input;
 }
 
 function isConcurrencyError(message: string): boolean {
   return /concurrent-runs-limit-exceeded|concurrent Actor runs/i.test(message);
 }
 
-/** One Apify run: company-scoped LinkedIn search for a batch of employers. */
-async function runOnce(
-  token: string,
-  batch: BatchInput,
-  config: HighPayConfig,
-  deadline: number,
-): Promise<ApifyJob[]> {
-  const seconds = FRESHNESS_SECONDS[config.freshness];
-
-  const input: Record<string, unknown> = {
-    location: batch.location,
-    limit: config.limit,
-    // f_TPR = "posted within N seconds" — finer than the actor's datePosted enum.
-    urlParam: [{ key: "f_TPR", value: `r${seconds}` }],
-    // Keep the pull on-role; the actor filters titles case-insensitively and
-    // ignores word order, so "Backend Engineer" also catches "Engineer, Backend".
-    titleInclude: config.titles,
-  };
-  if (config.keywords) input.keywords = config.keywords;
-  if (batch.names && batch.names.length) input.companyName = batch.names;
-
-  const budget = Math.min(RUN_TIMEOUT_MS, deadline - Date.now());
-  if (budget <= 2_000) throw new Error("skipped: out of time");
-
+async function apify(
+  url: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), budget);
+  const timer = setTimeout(() => controller.abort(), init?.timeoutMs ?? 15_000);
   try {
-    const res = await fetch(`${ENDPOINT}?token=${encodeURIComponent(token)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-      cache: "no-store",
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`${res.status} ${res.statusText} ${body.slice(0, 300)}`);
-    }
-
-    const data = (await res.json()) as unknown;
-    return Array.isArray(data) ? (data as ApifyJob[]) : [];
+    return await fetch(url, { ...init, cache: "no-store", signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** runOnce + one polite retry when Apify says we're at the concurrent-run cap. */
-async function runBatch(
-  token: string,
-  batch: BatchInput,
-  config: HighPayConfig,
-  deadline: number,
-): Promise<ApifyJob[]> {
-  try {
-    return await runOnce(token, batch, config, deadline);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (!isConcurrencyError(msg)) throw err;
-    if (Date.now() + CONCURRENCY_BACKOFF_MS + MIN_RUN_MS > deadline) {
-      throw new Error("Apify concurrent-run limit reached (another run is still going)");
-    }
-    await new Promise((r) => setTimeout(r, CONCURRENCY_BACKOFF_MS));
-    return runOnce(token, batch, config, deadline);
-  }
-}
-
-export interface HighPayFetchResult {
-  raw: ApifyJob[];
-  companies: HighPayCompany[];
-  /** Total company names in scope (radar names + parent-brand aliases). */
-  totalNames: number;
-  /** Names actually covered by the searches that came back this refresh. */
-  namesScanned: number;
-  batches: number; // runs attempted
-  batchesOk: number; // runs that returned in time
-  startIndex: number; // rotation cursor this refresh started at
-  nextIndex: number; // where the next refresh should pick up
-  wrapped: boolean; // true when this refresh completed a full loop of the list
-  fallback: boolean;
+export interface StartResult {
+  runs: HighPayRun[];
+  started: number;
+  nextIndex: number;
   errors: string[];
   concurrencyHit: boolean;
 }
 
 /**
- * Fetch LinkedIn jobs restricted to the High Pay Radar company list.
+ * Kick off up to `count` Apify runs and return immediately.
  *
- * The list is far too long to scan inside one 60s serverless request, and Apify
- * free plans only allow a handful of concurrent Actor runs — so each refresh
- * scans a *slice* of the list (small batches, bounded concurrency) starting
- * where the previous refresh stopped, and the route merges the results into the
- * saved snapshot. A few refreshes cover everything; one refresh never stalls.
+ * This is the key difference from the normal board: the LinkedIn actor often
+ * needs well over a minute for a company-scoped search, which no serverless
+ * request can wait for. So we START runs here, remember their ids, and collect
+ * their datasets on later polls.
  */
-export async function runHighPaySearches(
+export async function startRuns(
   token: string,
   config: HighPayConfig,
-  startIndex = 0,
-): Promise<HighPayFetchResult> {
-  const deadline = Date.now() + DEADLINE_MS;
-  const companies = selectCompanies(config.tiers, config.cats);
-  const names = searchNames(companies);
-  const groups = chunk(names, config.batchSize);
-
-  // One work unit = one company batch × one location, laid out in a stable
-  // order so the rotation cursor means the same thing across refreshes.
-  const units: BatchInput[] = [];
-  for (const g of groups) {
-    for (const location of config.locations) units.push({ location, names: g });
+  startIndex: number,
+  count: number,
+): Promise<StartResult> {
+  const { units } = buildUnits(config);
+  if (units.length === 0 || count <= 0) {
+    return { runs: [], started: 0, nextIndex: startIndex, errors: [], concurrencyHit: false };
   }
 
-  const start = units.length ? ((startIndex % units.length) + units.length) % units.length : 0;
-  const planned = Math.min(config.maxBatches, units.length);
-
-  const raw: ApifyJob[] = [];
+  const start = ((startIndex % units.length) + units.length) % units.length;
+  const runs: HighPayRun[] = [];
   const errors: string[] = [];
-  let batchesOk = 0;
-  let attempted = 0;
-  let namesScanned = 0;
   let concurrencyHit = false;
-  let next = 0; // offset (from start) of the first unit NOT taken by a worker
+  let offset = 0;
 
-  const take = () => {
-    if (next >= planned) return null;
-    if (Date.now() > deadline - MIN_RUN_MS) return null;
-    const offset = next++;
-    return { offset, unit: units[(start + offset) % units.length] };
-  };
+  const url = `${BASE}/acts/${ACTOR}/runs?token=${encodeURIComponent(token)}&timeout=${RUN_TIMEOUT_SECS}`;
 
-  async function worker() {
-    for (;;) {
-      const job = take();
-      if (!job) return;
-      attempted++;
-      try {
-        const items = await runBatch(token, job.unit, config, deadline);
-        batchesOk++;
-        namesScanned += job.unit.names?.length ?? 0;
-        raw.push(...items);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (isConcurrencyError(msg)) concurrencyHit = true;
-        errors.push(
-          /abort|out of time|skipped/i.test(msg)
-            ? "a company batch ran out of time"
-            : isConcurrencyError(msg)
-              ? "Apify's concurrent-run limit was hit"
-              : msg.slice(0, 160),
-        );
-      }
-    }
-  }
-
-  const lanes = Math.max(1, Math.min(config.concurrency, planned));
-  await Promise.all(Array.from({ length: lanes }, () => worker()));
-
-  // Nothing at all came back and the user allows it: one broad search, filtered
-  // to high-pay employers locally. Costs one extra run, only on empty days.
-  let fallback = false;
-  if (raw.length === 0 && config.fallbackBroad && Date.now() < deadline - MIN_RUN_MS) {
-    fallback = true;
+  for (; offset < Math.min(count, units.length); offset++) {
+    const unit = units[(start + offset) % units.length];
     try {
-      raw.push(
-        ...(await runBatch(token, { location: config.locations[0], names: null }, config, deadline)),
-      );
+      const res = await apify(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(actorInput(unit, config)),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const msg = `${res.status} ${res.statusText} ${body.slice(0, 200)}`;
+        if (isConcurrencyError(msg)) {
+          concurrencyHit = true;
+          break; // no point trying the rest of this wave
+        }
+        throw new Error(msg);
+      }
+      const json = (await res.json()) as {
+        data?: { id?: string; defaultDatasetId?: string };
+      };
+      const id = json.data?.id;
+      const ds = json.data?.defaultDatasetId;
+      if (!id || !ds) throw new Error("Apify did not return a run id");
+      runs.push({ id, ds, loc: unit.location, names: unit.names.length, at: Date.now() });
     } catch (err) {
-      errors.push(err instanceof Error ? err.message.slice(0, 160) : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(/abort/i.test(msg) ? "Apify took too long to accept the run" : msg.slice(0, 160));
+      break;
     }
   }
-
-  if (raw.length === 0 && batchesOk === 0 && errors.length > 0) {
-    throw new Error(Array.from(new Set(errors)).slice(0, 2).join(" | "));
-  }
-
-  const consumed = attempted; // where the next refresh should resume
-  const nextIndex = units.length ? (start + consumed) % units.length : 0;
 
   return {
-    raw,
-    companies,
-    totalNames: names.length,
-    namesScanned,
-    batches: attempted,
-    batchesOk,
-    startIndex: start,
-    nextIndex,
-    wrapped: consumed >= units.length,
-    fallback,
+    runs,
+    started: runs.length,
+    // Only advance past the units we actually launched.
+    nextIndex: units.length ? (start + runs.length) % units.length : 0,
     errors: Array.from(new Set(errors)),
     concurrencyHit,
+  };
+}
+
+export interface CollectResult {
+  items: ApifyJob[];
+  stillRunning: HighPayRun[];
+  finished: number; // runs that completed successfully this poll
+  failed: number; // runs that failed / were aborted / timed out
+  namesDone: number; // company names covered by runs that finished
+  errors: string[];
+}
+
+/** Check each tracked run; pull the dataset of any that finished. */
+export async function collectRuns(token: string, runs: HighPayRun[]): Promise<CollectResult> {
+  const items: ApifyJob[] = [];
+  const stillRunning: HighPayRun[] = [];
+  const errors: string[] = [];
+  let finished = 0;
+  let failed = 0;
+  let namesDone = 0;
+
+  await Promise.all(
+    runs.map(async (run) => {
+      try {
+        const res = await apify(
+          `${BASE}/actor-runs/${run.id}?token=${encodeURIComponent(token)}`,
+        );
+        if (!res.ok) throw new Error(`status check failed (${res.status})`);
+        const json = (await res.json()) as { data?: { status?: string } };
+        const status = json.data?.status ?? "UNKNOWN";
+
+        if (status === "READY" || status === "RUNNING" || status === "ABORTING") {
+          if (Date.now() - run.at > RUN_GIVE_UP_MS) {
+            failed++;
+            errors.push("a search was taking too long and was stopped");
+            void apify(`${BASE}/actor-runs/${run.id}/abort?token=${encodeURIComponent(token)}`, {
+              method: "POST",
+            }).catch(() => {});
+          } else {
+            stillRunning.push(run);
+          }
+          return;
+        }
+
+        if (status !== "SUCCEEDED") {
+          failed++;
+          errors.push(`a search ended as ${status.toLowerCase()}`);
+          return;
+        }
+
+        const dsRes = await apify(
+          `${BASE}/datasets/${run.ds}/items?token=${encodeURIComponent(token)}&clean=true&format=json`,
+          { timeoutMs: 20_000 },
+        );
+        if (!dsRes.ok) throw new Error(`could not read results (${dsRes.status})`);
+        const data = (await dsRes.json()) as unknown;
+        if (Array.isArray(data)) items.push(...(data as ApifyJob[]));
+        finished++;
+        namesDone += run.names;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Transient check failure — keep the run and try again next poll.
+        if (Date.now() - run.at <= RUN_GIVE_UP_MS) stillRunning.push(run);
+        else {
+          failed++;
+          errors.push(msg.slice(0, 160));
+        }
+      }
+    }),
+  );
+
+  return {
+    items,
+    stillRunning,
+    finished,
+    failed,
+    namesDone,
+    errors: Array.from(new Set(errors)),
   };
 }

@@ -13,25 +13,39 @@ export interface HighPayJob extends Job {
   };
 }
 
-export interface HighPayRefreshResponse {
+/** Where the sweep of the company list has reached. */
+export interface HighPayProgress {
+  /** Scan units (company batch × location) already covered this sweep. */
+  swept: number;
+  /** Total units in a full sweep of the selected companies. */
+  totalUnits: number;
+  /** Company names covered this sweep, and in total. */
+  namesDone: number;
+  totalNames: number;
+  companies: number;
+}
+
+/**
+ * One reply from the scan endpoint. The board starts runs (POST) and then polls
+ * (GET) until `pending` reaches zero — Apify's LinkedIn runs are far too slow to
+ * wait for inside a single request.
+ */
+export interface HighPayScanResponse {
   jobs: HighPayJob[];
-  refreshedAt: string;
+  refreshedAt: string | null;
   config?: HighPayConfig;
-  /** How the pull went — surfaced in the board's subtitle. */
-  stats?: {
-    companies: number; // companies in scope after tier/sector selection
-    totalNames: number; // company names in scope (incl. parent-brand aliases)
-    namesScanned: number; // names actually covered by this refresh
-    coveredFrom: number; // 1-based position in the rotation this scan started at
-    batches: number; // Apify runs attempted
-    batchesOk: number; // runs that came back in time
-    raw: number; // raw LinkedIn items fetched
-    matched: number; // items that resolved to a high-pay company
-    added: number; // jobs new to the board this scan
-    total: number; // jobs on the board after merging with the last snapshot
-    fallback: boolean; // true if the broad-search fallback was used
-    partial: boolean; // true if some batches timed out / failed
-    concurrencyHit: boolean; // true if Apify's concurrent-run cap was hit
-  };
+  /** Apify runs started by this call (POST only). */
+  started?: number;
+  /** Runs still in flight — keep polling while this is > 0. */
+  pending: number;
+  progress: HighPayProgress;
+  /** Jobs new to the board from runs collected by this call. */
+  added?: number;
+  /** Postings pulled / kept by runs collected by this call. */
+  raw?: number;
+  matched?: number;
+  /** True when the whole selected company list has been swept. */
+  sweepComplete?: boolean;
   error?: string;
+  code?: string;
 }

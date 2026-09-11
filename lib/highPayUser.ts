@@ -2,6 +2,7 @@ import type { Collection } from "mongodb";
 import clientPromise from "./mongodb";
 import type { HighPayConfig } from "./highPayConfig";
 import type { HighPayJob } from "./highPayTypes";
+import type { HighPayRun } from "./highPayApify";
 
 /**
  * High Pay board's slice of the `users` document. Kept in its own module (with
@@ -12,8 +13,12 @@ export interface HighPayUserDoc {
   email: string;
   highPayConfig?: HighPayConfig;
   highPaySnapshot?: { jobs: HighPayJob[]; refreshedAt: string };
-  /** Where the next refresh resumes scanning the company list (rotation). */
+  /** Next unit (company batch × location) the scan should start from. */
   highPayCursor?: number;
+  /** Units already covered in the current sweep of the company list. */
+  highPaySwept?: number;
+  /** Apify runs started and not yet collected. */
+  highPayRuns?: HighPayRun[];
 }
 
 async function col(): Promise<Collection<HighPayUserDoc>> {
@@ -23,22 +28,49 @@ async function col(): Promise<Collection<HighPayUserDoc>> {
 export async function getHighPayUser(email: string): Promise<HighPayUserDoc | null> {
   return (await col()).findOne(
     { email },
-    { projection: { email: 1, highPayConfig: 1, highPaySnapshot: 1, highPayCursor: 1 } },
+    {
+      projection: {
+        email: 1,
+        highPayConfig: 1,
+        highPaySnapshot: 1,
+        highPayCursor: 1,
+        highPaySwept: 1,
+        highPayRuns: 1,
+      },
+    },
   );
 }
 
 export async function saveHighPayConfig(email: string, config: HighPayConfig): Promise<void> {
-  await (await col()).updateOne({ email }, { $set: { highPayConfig: config } }, { upsert: true });
+  // A new company selection invalidates where we were in the sweep.
+  await (await col()).updateOne(
+    { email },
+    { $set: { highPayConfig: config, highPayCursor: 0, highPaySwept: 0 } },
+    { upsert: true },
+  );
+}
+
+/** Remember the runs we're waiting on and where the sweep has reached. */
+export async function saveHighPayScanState(
+  email: string,
+  state: { runs: HighPayRun[]; cursor: number; swept: number },
+): Promise<void> {
+  await (await col()).updateOne(
+    { email },
+    {
+      $set: {
+        highPayRuns: state.runs,
+        highPayCursor: state.cursor,
+        highPaySwept: state.swept,
+      },
+    },
+  );
 }
 
 export async function saveHighPaySnapshot(
   email: string,
   jobs: HighPayJob[],
   refreshedAt: string,
-  cursor: number,
 ): Promise<void> {
-  await (await col()).updateOne(
-    { email },
-    { $set: { highPaySnapshot: { jobs, refreshedAt }, highPayCursor: cursor } },
-  );
+  await (await col()).updateOne({ email }, { $set: { highPaySnapshot: { jobs, refreshedAt } } });
 }

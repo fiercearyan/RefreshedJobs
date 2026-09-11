@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Job } from "@/lib/types";
-import type { HighPayJob, HighPayRefreshResponse } from "@/lib/highPayTypes";
+import type { HighPayJob, HighPayProgress, HighPayScanResponse } from "@/lib/highPayTypes";
 import {
   ALL_CATS,
   ALL_TIERS,
@@ -78,6 +78,10 @@ export default function HighPayBoard({
   const [config, setConfig] = useState<HighPayConfig>(DEFAULT_HIGH_PAY_CONFIG);
   const [companyCount, setCompanyCount] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  // Scan state — Apify runs are started, then polled until they finish.
+  const [pending, setPending] = useState(0);
+  const [progress, setProgress] = useState<HighPayProgress | null>(null);
+  const stopRef = useRef(false);
 
   // filter / sort / view state
   const [q, setQ] = useState("");
@@ -123,6 +127,18 @@ export default function HighPayBoard({
       .catch(() => {
         /* ignore — defaults shown */
       });
+    // A scan started on another device (or before a reload) may still be running.
+    fetch("/api/highpay-refresh")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: HighPayScanResponse | null) => {
+        if (!data) return;
+        apply(data);
+        if (data.pending > 0) void resume();
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function setAct(job: BoardJob, val: "" | FiledStatus) {
@@ -156,39 +172,110 @@ export default function HighPayBoard({
     });
   }
 
-  async function refresh() {
+  const apply = useCallback((data: HighPayScanResponse) => {
+    // Never let an empty reply wipe a board we've already filled this session.
+    if (Array.isArray(data.jobs)) setJobs((prev) => (data.jobs.length ? data.jobs : prev));
+    if (data.refreshedAt) setRefreshedAt(data.refreshedAt);
+    if (data.config) setConfig(data.config);
+    if (data.progress) {
+      setProgress(data.progress);
+      setCompanyCount(data.progress.companies);
+    }
+    setPending(data.pending ?? 0);
+  }, []);
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** Poll until every in-flight run has been collected. Returns the last reply. */
+  const pollUntilIdle = useCallback(async (): Promise<HighPayScanResponse | null> => {
+    let last: HighPayScanResponse | null = null;
+    for (let i = 0; i < 60; i++) {
+      if (stopRef.current) break;
+      await sleep(i === 0 ? 6000 : 8000);
+      if (stopRef.current) break;
+      const res = await fetch("/api/highpay-refresh");
+      const data = (await res.json()) as HighPayScanResponse;
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      apply(data);
+      last = data;
+      if (data.added || data.matched) {
+        setNote(
+          `+${data.added ?? 0} new · ${data.jobs?.length ?? 0} roles on the board · ` +
+            `${data.progress.namesDone}/${data.progress.totalNames} companies scanned`,
+        );
+      }
+      if (!data.pending) break;
+    }
+    return last;
+  }, [apply]);
+
+  /** Re-attach to a scan that was already running when the page loaded. */
+  const resume = useCallback(async () => {
+    setLoading(true);
+    try {
+      await pollUntilIdle();
+    } catch {
+      /* leave the board as-is */
+    } finally {
+      setLoading(false);
+    }
+  }, [pollUntilIdle]);
+
+  function stopScan() {
+    stopRef.current = true;
+  }
+
+  /**
+   * Start the scan and keep it going: the LinkedIn actor needs minutes per
+   * search, so we launch a wave of Apify runs, poll until they land, then
+   * launch the next wave — until the whole company list is swept, the run
+   * budget for this press is used up, or you press Stop.
+   */
+  async function scan() {
+    if (loading) return;
+    stopRef.current = false;
     setLoading(true);
     setError(null);
     setNote(null);
+    let runsStarted = 0;
     try {
-      const res = await fetch("/api/highpay-refresh", { method: "POST" });
-      const data = (await res.json()) as HighPayRefreshResponse;
-      if (!res.ok && !data.jobs) {
-        throw new Error(data.error || `Request failed (${res.status})`);
-      }
-      if (data.jobs) {
-        setJobs(data.jobs);
-        setRefreshedAt(data.refreshedAt);
-        if (data.config) setConfig(data.config);
-        if (data.stats) {
-          const s = data.stats;
-          const bits = [
-            `+${s.added} new · ${s.total} roles on the board`,
-            `scanned ${s.namesScanned} of ${s.totalNames} companies this pass (${s.batchesOk}/${s.batches} searches, ${s.matched}/${s.raw} postings kept)`,
-          ];
-          if (s.namesScanned < s.totalNames) {
-            bits.push("hit Refresh again to continue where this scan stopped");
-          }
-          if (s.fallback) bits.push("used the broad-search fallback");
-          if (s.concurrencyHit) bits.push("Apify's concurrent-run limit was hit — lower “Runs at once”");
-          else if (s.partial) bits.push("a search ran out of time — lower the batch size");
-          setNote(bits.join(" · "));
+      for (;;) {
+        const res = await fetch("/api/highpay-refresh", { method: "POST" });
+        const data = (await res.json()) as HighPayScanResponse;
+        if (!res.ok && !data.jobs) throw new Error(data.error || `Request failed (${res.status})`);
+        apply(data);
+        if (data.error) setError(data.error);
+        runsStarted += data.started ?? 0;
+
+        if (!data.pending) break; // nothing running and nothing could be started
+
+        setNote(
+          `Scanning ${data.progress.totalNames} companies — ${data.pending} LinkedIn ` +
+            `${data.pending === 1 ? "search" : "searches"} running. Results land as they finish; ` +
+            `you can leave this page.`,
+        );
+
+        const last = await pollUntilIdle();
+        if (stopRef.current) break;
+        if (last?.sweepComplete) {
+          setNote(
+            `Swept all ${last.progress.totalNames} companies · ${last.jobs?.length ?? 0} roles on the board.`,
+          );
+          break;
+        }
+        if (runsStarted >= config.maxBatches) {
+          setNote(
+            `Paused after ${runsStarted} searches (your per-scan budget) · ` +
+              `${last?.progress.namesDone ?? 0}/${last?.progress.totalNames ?? 0} companies covered · ` +
+              `press Scan again to continue where this left off.`,
+          );
+          break;
         }
       }
-      if (data.error) setError(data.error);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Refresh failed");
+      setError(e instanceof Error ? e.message : "Scan failed");
     } finally {
+      stopRef.current = false;
       setLoading(false);
     }
   }
@@ -329,8 +416,20 @@ export default function HighPayBoard({
             {fmtRefreshed(refreshedAt)}
             <br />
             <span className="text-[11.5px]">
-              Each scan sweeps a slice of the company list and adds to the board — keep hitting
-              Refresh to work through all of them.
+              {progress && progress.totalUnits > 0 ? (
+                <>
+                  Sweep progress: <b className="text-ink">{progress.namesDone}</b>/
+                  {progress.totalNames} companies scanned
+                  {progress.swept >= progress.totalUnits
+                    ? " — full list covered; the next scan starts a new sweep."
+                    : " — Scan picks up where it left off."}
+                </>
+              ) : (
+                <>
+                  Each scan works through the company list in waves and adds what it finds to the
+                  board.
+                </>
+              )}
             </span>
           </p>
         </div>
@@ -379,20 +478,28 @@ export default function HighPayBoard({
           >
             ⚙︎ Settings
           </button>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-full bg-brand px-[15px] py-[8px] text-xs font-bold text-white shadow-card transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? (
-              <>
+          {loading ? (
+            <>
+              <span className="inline-flex items-center gap-2 rounded-full bg-brand px-[15px] py-[8px] text-xs font-bold text-white shadow-card">
                 <span className="inline-block h-[13px] w-[13px] animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                Scanning…
-              </>
-            ) : (
-              <>↻ Refresh</>
-            )}
-          </button>
+                Scanning{pending > 0 ? ` · ${pending} running` : "…"}
+              </span>
+              <button
+                onClick={stopScan}
+                title="Stop after the searches that are already running"
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-[12px] py-[7px] text-xs font-semibold shadow-card transition hover:border-red-ink hover:text-red-ink"
+              >
+                ■ Stop
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={scan}
+              className="inline-flex items-center gap-2 rounded-full bg-brand px-[15px] py-[8px] text-xs font-bold text-white shadow-card transition hover:bg-brand-dark"
+            >
+              ↻ Scan
+            </button>
+          )}
         </div>
       </header>
 
@@ -589,7 +696,7 @@ export default function HighPayBoard({
                 </b>
                 {view === "active"
                   ? jobs.length === 0
-                    ? "Hit Refresh to scan the High Pay Radar companies on LinkedIn."
+                    ? "Hit Scan to search the High Pay Radar companies on LinkedIn. Each search takes a minute or two — results land as they finish."
                     : "Try widening the pay band, clearing sectors, or stretching the freshness window in Settings — top companies post less often."
                   : "Applied / Saved / Not interested are shared with the main OpenRoles board."}
               </div>
@@ -633,7 +740,7 @@ export default function HighPayBoard({
             setConfig(next);
             setCompanyCount(companies);
             setShowSettings(false);
-            if (doRefresh) refresh();
+            if (doRefresh) void scan();
           }}
         />
       )}

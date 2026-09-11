@@ -62,12 +62,8 @@ export default function HighPaySettings({
   // estimate is based on names, not companies.
   const nameCount = useMemo(() => searchNames(selected).length, [selected]);
   const locCount = Math.max(1, locations.filter((l) => l.trim()).length);
-  const plannedRuns = Math.min(
-    maxBatches,
-    Math.ceil(nameCount / Math.max(1, batchSize)) * locCount,
-  );
-  const coveredNames = Math.min(nameCount, Math.ceil(plannedRuns / locCount) * batchSize);
-  const scansForFullSweep = Math.max(1, Math.ceil(nameCount / Math.max(1, coveredNames)));
+  const totalRuns = Math.max(1, Math.ceil(nameCount / Math.max(1, batchSize)) * locCount);
+  const waves = Math.max(1, Math.ceil(totalRuns / Math.max(1, concurrency)));
 
   function toggleTier(t: HighPayTier) {
     setTiers((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -179,10 +175,10 @@ export default function HighPaySettings({
         </div>
         <p className="mb-4 text-[11.5px] text-muted">
           <b className="text-ink">{inScope}</b> of {HIGH_PAY_COMPANIES.length} High Pay Radar
-          companies selected ({nameCount} names incl. parent brands) · each scan covers about{" "}
-          {coveredNames} of them across ~{plannedRuns} LinkedIn searches
-          {scansForFullSweep > 1 && <>, so ~{scansForFullSweep} scans sweep the whole list</>}. The
-          next scan resumes where the last one stopped, and results accumulate on the board.
+          companies selected ({nameCount} names incl. parent brands) · one full sweep is{" "}
+          {totalRuns} LinkedIn {totalRuns === 1 ? "search" : "searches"}, run {concurrency} at a
+          time, so roughly {waves} {waves === 1 ? "wave" : "waves"} of a minute or two. Results land
+          on the board as each search finishes.
         </p>
 
         {/* locations */}
@@ -300,8 +296,8 @@ export default function HighPaySettings({
               onChange={setBatchSize}
             />
             <Num
-              label="Max runs"
-              hint="per scan"
+              label="Run budget"
+              hint="searches / press"
               value={maxBatches}
               min={HP_MAX_BATCHES_MIN}
               max={HP_MAX_BATCHES_MAX}
@@ -333,11 +329,12 @@ export default function HighPaySettings({
             If the company-scoped scan finds nothing, retry once without it and filter locally
           </label>
           <p className="mt-2 text-[11px] leading-[1.5] text-muted">
-            Each run is one LinkedIn search on Apify. Runs go out &quot;Runs at once&quot; at a time
-            under a 50-second deadline — Apify free plans allow <b>5 concurrent Actor runs in
-            total</b>, so leaving headroom here avoids a 402 when the main board is also refreshing.
-            Smaller batches finish more reliably; the scan just resumes from where it stopped next
-            time.
+            Each run is one LinkedIn search on Apify, and these searches take a minute or more — so
+            Scan starts them in the background and collects each one as it finishes, rather than
+            waiting. <b>Runs at once</b> stays under Apify&apos;s 5-concurrent-run limit (leave
+            headroom if the main board refreshes too); <b>Run budget</b> is how many searches one
+            press of Scan may launch before pausing. Closing the page doesn&apos;t cancel anything —
+            the results are picked up next time you open the board.
           </p>
         </details>
 
