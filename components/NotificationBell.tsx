@@ -91,45 +91,76 @@ export default function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div style={{ position: "relative" }}>
       <button
         onClick={toggle}
         aria-label="Notifications"
         title="Saved-job reminders"
-        className="relative grid h-8 w-8 place-items-center rounded-full border border-line bg-panel-2 text-muted transition hover:border-brand hover:text-ink"
+        className="or-btn or-nav__alerts"
+        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 0 1-3.4 0" />
         </svg>
-        {hasUnread && (
-          <span className="absolute right-[6px] top-[6px] h-[8px] w-[8px] rounded-full bg-[#ef4444] ring-2 ring-panel" />
-        )}
+        Alerts
+        {hasUnread && <span className="or-nav__dot" aria-label="unread" />}
       </button>
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-2 w-[300px] rounded-[12px] border border-line bg-panel p-2 shadow-cardhover">
-            <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-              Saved-job reminders
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              zIndex: 50,
+              marginTop: 8,
+              width: 300,
+              borderRadius: 12,
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              padding: 8,
+              boxShadow: "0 18px 40px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div className="or-section__label" style={{ padding: "6px 8px" }}>
+              SAVED-JOB REMINDERS
             </div>
             {due.length === 0 ? (
-              <div className="px-2 py-4 text-center text-[12.5px] text-muted">
+              <div
+                style={{ padding: "16px 8px", textAlign: "center", fontSize: 12.5, color: "var(--muted)" }}
+              >
                 No reminders right now. Saved jobs ping you after 12 hours.
               </div>
             ) : (
-              <div className="flex max-h-[320px] flex-col gap-1 overflow-y-auto">
+              <div
+                style={{
+                  display: "flex",
+                  maxHeight: 320,
+                  flexDirection: "column",
+                  gap: 4,
+                  overflowY: "auto",
+                }}
+              >
                 {due.map((d) => (
                   <a
                     key={d.url}
                     href={d.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-[9px] border border-line bg-panel-2 px-3 py-2 transition hover:border-brand"
+                    style={{
+                      display: "block",
+                      borderRadius: 9,
+                      border: "1px solid var(--line)",
+                      background: "var(--surface2)",
+                      padding: "8px 12px",
+                    }}
                   >
-                    <div className="truncate text-[13px] font-semibold text-ink">🔖 {d.title}</div>
-                    <div className="mt-0.5 truncate text-[12px] text-muted">
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                      🔖 {d.title}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 12, color: "var(--muted)" }}>
                       {d.company}
                       {d.company && " · "}saved {agoLabel(now - d.savedAt)} — still on your list
                     </div>

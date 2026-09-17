@@ -26,8 +26,9 @@ export default function Navbar() {
     setLight(isLight);
   }
 
-  // No navbar on the sign-in screen.
-  if (pathname === "/signin") return null;
+  // No navbar on the sign-in screen, and none on the two boards — they render
+  // their own TopNav (brand, board switch, alerts, theme, settings, profile).
+  if (pathname === "/signin" || pathname === "/" || pathname === "/highpay") return null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-panel shadow-card">

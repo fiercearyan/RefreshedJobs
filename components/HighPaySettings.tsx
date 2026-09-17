@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FRESHNESS_LABEL, FRESHNESS_OPTIONS, type Freshness } from "@/lib/searchConfig";
 import {
   ALL_CATS,
@@ -14,6 +14,7 @@ import {
   type HighPayTier,
 } from "@/lib/highPayCompanies";
 import {
+  DEFAULT_HIGH_PAY_CONFIG,
   HP_BATCH_MAX,
   HP_BATCH_MIN,
   HP_CONCURRENCY_MAX,
@@ -24,9 +25,12 @@ import {
   HP_MAX_BATCHES_MIN,
   MAX_HP_LOCATIONS,
   MAX_HP_TITLES,
-  DEFAULT_HIGH_PAY_CONFIG,
   type HighPayConfig,
 } from "@/lib/highPayConfig";
+import { Check, ChipGroup, ChipRadio } from "@/components/ui/Controls";
+
+const TIER_BY_LABEL = new Map(ALL_TIERS.map((t) => [TIER_LABEL[t], t]));
+const CAT_BY_LABEL = new Map(ALL_CATS.map((c) => [CAT_LABEL[c], c]));
 
 export default function HighPaySettings({
   initial,
@@ -55,6 +59,14 @@ export default function HighPaySettings({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const selected = useMemo(() => selectCompanies(tiers, cats), [tiers, cats]);
   const inScope = selected.length;
   // The actor is queried by company NAME, and one company can be searched under
@@ -65,10 +77,14 @@ export default function HighPaySettings({
   const totalRuns = Math.max(1, Math.ceil(nameCount / Math.max(1, batchSize)) * locCount);
   const waves = Math.max(1, Math.ceil(totalRuns / Math.max(1, concurrency)));
 
-  function toggleTier(t: HighPayTier) {
+  function toggleBand(label: string) {
+    const t = TIER_BY_LABEL.get(label);
+    if (!t) return;
     setTiers((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   }
-  function toggleCat(c: HighPayCat) {
+  function toggleSector(label: string) {
+    const c = CAT_BY_LABEL.get(label);
+    if (!c) return;
     setCats((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   }
 
@@ -111,182 +127,161 @@ export default function HighPaySettings({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
+      className="or-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-label="High Pay search settings"
       onClick={onClose}
     >
-      <div
-        className="w-full max-w-[560px] rounded-[16px] border border-line bg-panel p-6 shadow-cardhover"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="m-0 text-[17px] font-bold tracking-[-0.01em]">High Pay search settings</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="grid h-7 w-7 place-items-center rounded-full text-muted hover:text-ink"
-          >
+      <div className="or-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="or-modal__head">
+          <div>
+            <div className="or-modal__title">High Pay search settings</div>
+            <div className="or-modal__note">
+              Separate from your normal OpenRoles settings — changes here never touch the main
+              board. Jobs still come from LinkedIn only; the company filter is applied at search
+              time.
+            </div>
+          </div>
+          <button type="button" className="or-modal__close" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>
-        <p className="mb-4 text-[12px] text-muted">
-          Separate from your normal OpenRoles search settings — changing anything here never touches
-          the main board. Jobs still come from LinkedIn only; the company filter is applied at search
-          time.
-        </p>
 
-        {/* pay bands */}
-        <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-          Pay bands
-        </label>
-        <div className="mb-4 flex flex-wrap gap-[7px]">
-          {ALL_TIERS.map((t) => (
+        {/* Pay bands ------------------------------------------------------- */}
+        <div className="or-section">
+          <div className="or-section__label" style={{ marginBottom: 8 }}>
+            PAY BANDS
+          </div>
+          <ChipGroup
+            ariaLabel="Pay bands"
+            size="pad"
+            options={ALL_TIERS.map((t) => TIER_LABEL[t])}
+            selected={tiers.map((t) => TIER_LABEL[t])}
+            onToggle={toggleBand}
+          />
+        </div>
+
+        {/* Sectors --------------------------------------------------------- */}
+        <div className="or-section">
+          <div className="or-section__label" style={{ marginBottom: 8 }}>
+            SECTORS
+          </div>
+          <ChipGroup
+            ariaLabel="Sectors"
+            size="pad"
+            options={ALL_CATS.map((c) => CAT_LABEL[c])}
+            selected={cats.map((c) => CAT_LABEL[c])}
+            onToggle={toggleSector}
+          />
+          <div className="or-section__note or-section__note--below">
+            <b>{inScope}</b> of {HIGH_PAY_COMPANIES.length} companies selected ({nameCount} names
+            incl. parent brands) · one full sweep is {totalRuns} LinkedIn{" "}
+            {totalRuns === 1 ? "search" : "searches"}, run {concurrency} at a time — roughly {waves}{" "}
+            {waves === 1 ? "wave" : "waves"} of a minute or two. Results land on the board as each
+            search finishes.
+          </div>
+        </div>
+
+        {/* Locations ------------------------------------------------------- */}
+        <div className="or-section">
+          <div className="or-section__head">
+            <div className="or-section__label">LOCATIONS ({locations.length}/{MAX_HP_LOCATIONS})</div>
             <button
-              key={t}
-              onClick={() => toggleTier(t)}
-              className={`rounded-full border px-[12px] py-[6px] text-[12px] font-semibold transition ${
-                tiers.includes(t)
-                  ? "border-brand bg-brand text-white"
-                  : "border-line bg-chip text-chip-ink hover:border-brand"
-              }`}
+              type="button"
+              className="or-btn--link"
+              onClick={() => locations.length < MAX_HP_LOCATIONS && setLocations((p) => [...p, ""])}
             >
-              {TIER_LABEL[t]}
+              + Add location
             </button>
-          ))}
-        </div>
-
-        {/* sectors */}
-        <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-          Sectors
-        </label>
-        <div className="mb-2 flex flex-wrap gap-[7px]">
-          {ALL_CATS.map((c) => (
-            <button
-              key={c}
-              onClick={() => toggleCat(c)}
-              className={`rounded-full border px-[12px] py-[6px] text-[12px] font-semibold transition ${
-                cats.includes(c)
-                  ? "border-brand bg-brand text-white"
-                  : "border-line bg-chip text-chip-ink hover:border-brand"
-              }`}
-            >
-              {CAT_LABEL[c]}
-            </button>
-          ))}
-        </div>
-        <p className="mb-4 text-[11.5px] text-muted">
-          <b className="text-ink">{inScope}</b> of {HIGH_PAY_COMPANIES.length} High Pay Radar
-          companies selected ({nameCount} names incl. parent brands) · one full sweep is{" "}
-          {totalRuns} LinkedIn {totalRuns === 1 ? "search" : "searches"}, run {concurrency} at a
-          time, so roughly {waves} {waves === 1 ? "wave" : "waves"} of a minute or two. Results land
-          on the board as each search finishes.
-        </p>
-
-        {/* locations */}
-        <div className="mb-1 flex items-center justify-between">
-          <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-            Locations ({locations.length}/{MAX_HP_LOCATIONS})
-          </label>
-          <button
-            onClick={() => locations.length < MAX_HP_LOCATIONS && setLocations((p) => [...p, ""])}
-            disabled={locations.length >= MAX_HP_LOCATIONS}
-            className="text-[12px] font-bold text-brand disabled:opacity-40"
-          >
-            + Add location
-          </button>
-        </div>
-        <div className="mb-4 flex flex-col gap-2">
-          {locations.map((loc, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input
-                value={loc}
-                onChange={(e) =>
-                  setLocations((p) => p.map((l, idx) => (idx === i ? e.target.value : l)))
-                }
-                placeholder={i === 0 ? "e.g. India, Bengaluru, Remote" : "Second location (optional)"}
-                className="w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[9px] text-[14px] text-ink outline-none focus:border-brand"
-              />
-              {locations.length > 1 && (
+          </div>
+          <div className="or-fields">
+            {locations.map((l, i) => (
+              <div className="or-fieldrow" key={i}>
+                <input
+                  className="or-input"
+                  value={l}
+                  onChange={(e) =>
+                    setLocations((p) => p.map((x, j) => (j === i ? e.target.value : x)))
+                  }
+                  placeholder="e.g. India, Bengaluru, Remote"
+                  aria-label={`Location ${i + 1}`}
+                />
                 <button
-                  onClick={() => setLocations((p) => p.filter((_, idx) => idx !== i))}
-                  aria-label="Remove location"
-                  className="grid h-8 w-8 flex-none place-items-center rounded-[9px] border border-line bg-chip text-muted hover:border-red-ink hover:text-red-ink"
+                  type="button"
+                  className="or-iconbtn"
+                  aria-label={`Remove location ${i + 1}`}
+                  onClick={() => setLocations((p) => p.filter((_, j) => j !== i))}
                 >
                   ✕
                 </button>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* freshness */}
-        <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-          Posted within
-        </label>
-        <div className="mb-2 flex flex-wrap gap-[7px]">
-          {FRESHNESS_OPTIONS.map((f) => (
+        {/* Posted within --------------------------------------------------- */}
+        <div className="or-section">
+          <div className="or-section__label" style={{ marginBottom: 8 }}>
+            POSTED WITHIN
+          </div>
+          <ChipRadio
+            ariaLabel="Posted within"
+            options={FRESHNESS_OPTIONS}
+            value={freshness}
+            onChange={(v) => setFreshness(v as Freshness)}
+          />
+          <div className="or-section__note or-section__note--below">
+            Currently: posted within {FRESHNESS_LABEL[freshness]}. Top payers post far fewer roles,
+            so a wider window makes sense here.
+          </div>
+        </div>
+
+        {/* Role titles ----------------------------------------------------- */}
+        <div className="or-section">
+          <div className="or-section__head">
+            <div className="or-section__label">ROLE TITLES ({titles.length}/{MAX_HP_TITLES})</div>
             <button
-              key={f}
-              onClick={() => setFreshness(f)}
-              className={`rounded-full border px-[12px] py-[6px] text-[12px] font-semibold transition ${
-                freshness === f
-                  ? "border-brand bg-brand text-white"
-                  : "border-line bg-chip text-chip-ink hover:border-brand"
-              }`}
+              type="button"
+              className="or-btn--link"
+              onClick={() => titles.length < MAX_HP_TITLES && setTitles((p) => [...p, ""])}
             >
-              {f}
+              + Add title
             </button>
-          ))}
-        </div>
-        <p className="mb-4 text-[11.5px] text-muted">
-          Currently: posted within {FRESHNESS_LABEL[freshness]}. Top payers post far fewer roles — a
-          wider window than the main board usually makes sense here.
-        </p>
-
-        {/* titles */}
-        <div className="mb-1 flex items-center justify-between">
-          <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
-            Role titles ({titles.length}/{MAX_HP_TITLES})
-          </label>
-          <button
-            onClick={() => titles.length < MAX_HP_TITLES && setTitles((p) => [...p, ""])}
-            disabled={titles.length >= MAX_HP_TITLES}
-            className="text-[12px] font-bold text-brand disabled:opacity-40"
-          >
-            + Add title
-          </button>
-        </div>
-        <p className="mb-2 text-[11.5px] text-muted">
-          A posting is kept if its title contains all the words of any one phrase (order doesn&apos;t
-          matter), so &quot;Backend Engineer&quot; also catches &quot;Engineer II, Backend&quot;.
-        </p>
-        <div className="mb-4 flex flex-col gap-2">
-          {titles.map((t, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input
-                value={t}
-                onChange={(e) =>
-                  setTitles((p) => p.map((x, idx) => (idx === i ? e.target.value : x)))
-                }
-                placeholder="e.g. Backend Engineer"
-                className="w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[8px] text-[13.5px] text-ink outline-none focus:border-brand"
-              />
-              <button
-                onClick={() => setTitles((p) => p.filter((_, idx) => idx !== i))}
-                aria-label="Remove title"
-                className="grid h-8 w-8 flex-none place-items-center rounded-[9px] border border-line bg-chip text-muted hover:border-red-ink hover:text-red-ink"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          </div>
+          <div className="or-section__note or-section__note--above">
+            A posting is kept if its title contains all the words of any one phrase, so &quot;Backend
+            Engineer&quot; also catches &quot;Engineer II, Backend&quot;.
+          </div>
+          <div className="or-fields">
+            {titles.map((t, i) => (
+              <div className="or-fieldrow" key={i}>
+                <input
+                  className="or-input"
+                  value={t}
+                  onChange={(e) => setTitles((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+                  placeholder="e.g. Backend Engineer"
+                  aria-label={`Role title ${i + 1}`}
+                />
+                <button
+                  type="button"
+                  className="or-iconbtn"
+                  aria-label={`Remove title ${i + 1}`}
+                  onClick={() => setTitles((p) => p.filter((_, j) => j !== i))}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* advanced */}
-        <details className="mb-2 rounded-[10px] border border-line bg-panel-2 px-3 py-2">
-          <summary className="cursor-pointer text-[12px] font-bold text-sslate">
-            Advanced — Apify run budget
-          </summary>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Apify run budget ------------------------------------------------ */}
+        <div className="or-section">
+          <div className="or-section__label" style={{ marginBottom: 8 }}>
+            APIFY RUN BUDGET
+          </div>
+          <div className="or-fieldrow">
             <Num
               label="Batch size"
               hint="companies / run"
@@ -320,52 +315,52 @@ export default function HighPaySettings({
               onChange={setLimit}
             />
           </div>
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold">
-            <input
-              type="checkbox"
-              checked={fallbackBroad}
-              onChange={(e) => setFallbackBroad(e.target.checked)}
-            />
-            If the company-scoped scan finds nothing, retry once without it and filter locally
-          </label>
-          <p className="mt-2 text-[11px] leading-[1.5] text-muted">
+          <div style={{ marginTop: 10 }}>
+            <Check checked={fallbackBroad} onChange={setFallbackBroad}>
+              If the company-scoped scan finds nothing, retry once without it and filter locally
+            </Check>
+          </div>
+          <div className="or-section__note or-section__note--below">
             Each run is one LinkedIn search on Apify, and these searches take a minute or more — so
             Scan starts them in the background and collects each one as it finishes, rather than
-            waiting. <b>Runs at once</b> stays under Apify&apos;s 5-concurrent-run limit (leave
-            headroom if the main board refreshes too); <b>Run budget</b> is how many searches one
-            press of Scan may launch before pausing. Closing the page doesn&apos;t cancel anything —
-            the results are picked up next time you open the board.
-          </p>
-        </details>
+            waiting. Closing the page doesn&apos;t cancel anything.
+          </div>
+        </div>
 
-        {/* optional keyword */}
-        <input
-          value={keywords}
-          onChange={(e) => setKeywords(e.target.value)}
-          placeholder="Optional extra LinkedIn keyword (e.g. distributed systems) — usually leave empty"
-          className="mb-1 w-full rounded-[9px] border border-line bg-panel-2 px-3 py-[8px] text-[13px] text-ink outline-none focus:border-brand"
-        />
+        {/* Optional keyword ------------------------------------------------ */}
+        <div className="or-section">
+          <input
+            className="or-input"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="Optional extra LinkedIn keyword (e.g. distributed systems) — usually leave empty"
+            aria-label="Extra LinkedIn keyword"
+          />
+        </div>
 
-        {err && <div className="mt-3 text-[12.5px] font-semibold text-red-ink">{err}</div>}
+        {err && (
+          <div className="or-section__note" style={{ marginTop: 12, color: "#e2557b" }}>
+            {err}
+          </div>
+        )}
 
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-[9px] border border-line bg-chip px-4 py-[9px] text-[13px] font-semibold text-sslate hover:border-brand"
-          >
+        <div className="or-modal__foot">
+          <button type="button" className="or-btn--outline" onClick={onClose}>
             Cancel
           </button>
           <button
-            onClick={() => save(false)}
+            type="button"
+            className="or-btn--neutral"
+            onClick={() => void save(false)}
             disabled={saving}
-            className="rounded-[9px] border border-line bg-panel-2 px-4 py-[9px] text-[13px] font-bold text-ink hover:border-brand disabled:opacity-60"
           >
             Save
           </button>
           <button
-            onClick={() => save(true)}
+            type="button"
+            className="or-btn or-btn--primary"
+            onClick={() => void save(true)}
             disabled={saving}
-            className="rounded-[9px] bg-brand px-4 py-[9px] text-[13px] font-bold text-white hover:bg-brand-dark disabled:opacity-60"
           >
             {saving ? "Saving…" : "Save & scan"}
           </button>
@@ -391,9 +386,13 @@ function Num({
   onChange: (n: number) => void;
 }) {
   return (
-    <label className="block">
-      <span className="block text-[11px] font-bold text-sslate">{label}</span>
+    <label style={{ flex: 1, minWidth: 0 }}>
+      <span className="or-section__label" style={{ display: "block", marginBottom: 4 }}>
+        {label}
+      </span>
       <input
+        className="or-input or-mono"
+        style={{ width: "100%" }}
         type="number"
         min={min}
         max={max}
@@ -401,9 +400,10 @@ function Num({
         onChange={(e) =>
           onChange(Math.min(max, Math.max(min, Math.round(Number(e.target.value) || min))))
         }
-        className="mt-1 w-full rounded-[9px] border border-line bg-panel px-2 py-[7px] text-center text-[13.5px] text-ink outline-none focus:border-brand"
       />
-      <span className="mt-[2px] block text-[10.5px] text-muted">{hint}</span>
+      <span className="or-section__note" style={{ display: "block", marginTop: 3 }}>
+        {hint}
+      </span>
     </label>
   );
 }

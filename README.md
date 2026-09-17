@@ -64,17 +64,26 @@ app/
   page.tsx                server component — reads the user's jobs snapshot from MongoDB
   layout.tsx              SessionProvider + navbar + no-flash theme script
   icon.svg                favicon (OpenRoles logo)
-  globals.css            Tailwind + themed component styles (CSS variables, dark/light)
+  globals.css            Tailwind + themed component styles (profile / sign-in)
+  openroles-theme.css    board UI theme — `or-`-prefixed, light + dark off one token set
 components/
-  JobBoard.tsx            the full board (header, filters, cards, tabs, refresh, settings)
-  SearchSettings.tsx      the Settings modal (locations, freshness, roles)
-  HighPayBoard.tsx        High Pay board (pay-band filters, radar badges, own refresh)
-  HighPaySettings.tsx     High Pay settings modal (bands, sectors, titles, run budget)
+  JobBoard.tsx            the All-roles container: state, fetching, filtering, /api/status
+  board/BoardShell.tsx    root + nav + 232px rail / results grid
+  board/TopNav.tsx        brand, All roles / High Pay, alerts, theme, settings, profile
+  board/BoardHeader.tsx   title + tag + meta + Refresh/Scan, search, status tabs
+  board/FilterRail.tsx    pay band, sector, experience, seniority, skills, toggles
+  board/RoleList.tsx      ResultsToolbar + one bordered list of role rows
+  ui/Controls.tsx         Segmented, ChipGroup, ChipRadio, StaticChips, Check
+  settings/SearchSettingsModal.tsx  the main board's search settings dialog
+  HighPayBoard.tsx        the High Pay container (pay bands, sectors, async scan)
+  HighPaySettings.tsx     High Pay settings dialog (bands, sectors, titles, run budget)
   Navbar.tsx              global navbar + theme toggle
   NotificationBell.tsx    saved-job reminder bell (12h, red dot, read-on-open)
   Logo.tsx                inline SVG logo
   Providers.tsx           client SessionProvider wrapper
 lib/
+  openrolesUi.ts          board view-model types, chip vocabularies, helpers
+  useOpenRolesChrome.ts   useTheme / useDensity / useStickyRail (cosmetics only)
   apify.ts                Apify run-sync-get-dataset-items client (role × location, f_TPR freshness)
   searchConfig.ts         search-config types, defaults, caps, validation
   normalize.ts            map raw items → UI jobs, dedupe by URL, collapse repost spam
