@@ -19,9 +19,12 @@ export default function ProfilePage() {
   const [apifyKey, setApifyKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [stats, setStats] = useState<{ applied: number; saved: number; notinterested: number } | null>(
-    null,
-  );
+  const [stats, setStats] = useState<{
+    applied: number;
+    saved: number;
+    notinterested: number;
+    closed: number;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -40,6 +43,7 @@ export default function ProfilePage() {
           applied: vals.filter((v) => v === "applied").length,
           saved: vals.filter((v) => v === "saved").length,
           notinterested: vals.filter((v) => v === "notinterested").length,
+          closed: vals.filter((v) => v === "closed").length,
         });
       })
       .catch(() => {
@@ -104,10 +108,11 @@ export default function ProfilePage() {
       </div>
 
       {/* activity stats */}
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label="Applied" value={stats?.applied} accent="text-sgreen" />
         <StatTile label="Saved jobs" value={stats?.saved} accent="text-sblue" />
         <StatTile label="Not interested" value={stats?.notinterested} accent="text-red-ink" />
+        <StatTile label="Closed" value={stats?.closed} accent="text-samber" />
       </div>
 
       {/* phone */}

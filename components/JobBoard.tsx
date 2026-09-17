@@ -6,9 +6,10 @@ import type { Job, RefreshResponse } from "@/lib/types";
 import SearchSettings from "@/components/SearchSettings";
 import { DEFAULT_CONFIG, FRESHNESS_LABEL, type SearchConfig } from "@/lib/searchConfig";
 
-type View = "active" | "applied" | "saved" | "notinterested";
+type View = "active" | "applied" | "saved" | "notinterested" | "closed";
 type Sort = "match" | "new";
-type FiledStatus = "applied" | "saved" | "notinterested";
+// "closed" = the posting was already gone when opened.
+type FiledStatus = "applied" | "saved" | "notinterested" | "closed";
 type Status = Record<string, FiledStatus>;
 
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
@@ -257,6 +258,7 @@ export default function JobBoard({
     applied: Object.values(status).filter((v) => v === "applied").length,
     saved: Object.values(status).filter((v) => v === "saved").length,
     not: Object.values(status).filter((v) => v === "notinterested").length,
+    closed: Object.values(status).filter((v) => v === "closed").length,
   };
 
   function reset() {
@@ -322,6 +324,9 @@ export default function JobBoard({
             </Tab>
             <Tab on={view === "notinterested"} onClick={() => setView("notinterested")}>
               🚫 Not interested<TabNum on={view === "notinterested"}>{counts.not}</TabNum>
+            </Tab>
+            <Tab on={view === "closed"} onClick={() => setView("closed")}>
+              🔒 Closed<TabNum on={view === "closed"}>{counts.closed}</TabNum>
             </Tab>
           </div>
           {/* High Pay board — a separate, company-filtered view. Opens its own
@@ -510,7 +515,9 @@ export default function JobBoard({
                       ? "No saved jobs yet"
                       : view === "notinterested"
                         ? "Nothing marked Not interested"
-                        : jobs.length === 0
+                        : view === "closed"
+                          ? "Nothing marked Closed"
+                          : jobs.length === 0
                           ? "No jobs loaded yet"
                           : "No roles match these filters"}
                 </b>
@@ -520,7 +527,9 @@ export default function JobBoard({
                     : "Try widening seniority, clearing skills, or moving the experience slider."
                   : view === "saved"
                     ? "Tap 🔖 Save on a card to keep it here. Saved jobs stay until you unsave them and never reappear in Active after a refresh."
-                    : "Use the ✓ Applied / 🔖 Saved / 🚫 Not interested buttons on a card to file it here. Filed jobs stay hidden from Active even after the board refreshes."}
+                    : view === "closed"
+                      ? "Tap 🔒 Closed on a card when the posting turns out to be gone, so it stays out of Active on the next refresh."
+                      : "Use the ✓ Applied / 🔖 Saved / 🚫 Not interested / 🔒 Closed buttons on a card to file it here. Filed jobs stay hidden from Active even after the board refreshes."}
               </div>
             ) : (
               list.map((j) => (
@@ -788,6 +797,13 @@ function JobCard({
             >
               🚫 Not interested
             </button>
+            <button
+              onClick={() => onAct(j, "closed")}
+              title="Posting is gone or no longer accepting applications"
+              className="min-w-[92px] flex-1 rounded-[9px] border border-line bg-chip px-[8px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-samber hover:bg-samber-bg hover:text-samber"
+            >
+              🔒 Closed
+            </button>
           </>
         ) : (
           <>
@@ -797,10 +813,18 @@ function JobCard({
                   ? "bg-sgreen-bg text-sgreen"
                   : status === "saved"
                     ? "bg-sblue-bg text-sblue"
-                    : "bg-red-soft text-red-ink"
+                    : status === "closed"
+                      ? "bg-samber-bg text-samber"
+                      : "bg-red-soft text-red-ink"
               }`}
             >
-              {status === "applied" ? "✓ Applied" : status === "saved" ? "🔖 Saved" : "🚫 Not interested"}
+              {status === "applied"
+                ? "✓ Applied"
+                : status === "saved"
+                  ? "🔖 Saved"
+                  : status === "closed"
+                    ? "🔒 Closed"
+                    : "🚫 Not interested"}
             </span>
             {status === "saved" && (
               <button

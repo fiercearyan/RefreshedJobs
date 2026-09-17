@@ -20,9 +20,10 @@ import HighPaySettings from "@/components/HighPaySettings";
  *  the radar tagging, so `hp` is optional on the board's working type. */
 type BoardJob = Job & { hp?: HighPayJob["hp"] };
 
-type View = "active" | "applied" | "saved" | "notinterested";
+type View = "active" | "applied" | "saved" | "notinterested" | "closed";
 type Sort = "band" | "match" | "new";
-type FiledStatus = "applied" | "saved" | "notinterested";
+// "closed" = the posting was already gone when opened.
+type FiledStatus = "applied" | "saved" | "notinterested" | "closed";
 type Status = Record<string, FiledStatus>;
 
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
@@ -377,6 +378,7 @@ export default function HighPayBoard({
     applied: Object.values(status).filter((v) => v === "applied").length,
     saved: Object.values(status).filter((v) => v === "saved").length,
     not: Object.values(status).filter((v) => v === "notinterested").length,
+    closed: Object.values(status).filter((v) => v === "closed").length,
   };
 
   function reset() {
@@ -470,6 +472,9 @@ export default function HighPayBoard({
             </Tab>
             <Tab on={view === "notinterested"} onClick={() => setView("notinterested")}>
               🚫 Not interested<TabNum on={view === "notinterested"}>{counts.not}</TabNum>
+            </Tab>
+            <Tab on={view === "closed"} onClick={() => setView("closed")}>
+              🔒 Closed<TabNum on={view === "closed"}>{counts.closed}</TabNum>
             </Tab>
           </div>
           <button
@@ -691,7 +696,9 @@ export default function HighPayBoard({
                       ? "No saved high-pay jobs yet"
                       : view === "notinterested"
                         ? "Nothing marked Not interested"
-                        : jobs.length === 0
+                        : view === "closed"
+                          ? "Nothing marked Closed"
+                          : jobs.length === 0
                           ? "No high-pay roles loaded yet"
                           : "No roles match these filters"}
                 </b>
@@ -1002,6 +1009,13 @@ function HighPayCard({
             >
               🚫 Not interested
             </button>
+            <button
+              onClick={() => onAct(j, "closed")}
+              title="Posting is gone or no longer accepting applications"
+              className="min-w-[92px] flex-1 rounded-[9px] border border-line bg-chip px-[8px] py-[9px] text-[12.5px] font-bold text-sslate transition hover:border-samber hover:bg-samber-bg hover:text-samber"
+            >
+              🔒 Closed
+            </button>
           </>
         ) : (
           <>
@@ -1011,14 +1025,18 @@ function HighPayCard({
                   ? "bg-sgreen-bg text-sgreen"
                   : status === "saved"
                     ? "bg-sblue-bg text-sblue"
-                    : "bg-red-soft text-red-ink"
+                    : status === "closed"
+                      ? "bg-samber-bg text-samber"
+                      : "bg-red-soft text-red-ink"
               }`}
             >
               {status === "applied"
                 ? "✓ Applied"
                 : status === "saved"
                   ? "🔖 Saved"
-                  : "🚫 Not interested"}
+                  : status === "closed"
+                    ? "🔒 Closed"
+                    : "🚫 Not interested"}
             </span>
             {status === "saved" && (
               <button

@@ -7,7 +7,7 @@ import type { Job } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 // Return the user's filed jobs as maps the client can use directly:
-//   status:  { [url]: "applied" | "saved" | "notinterested" }
+//   status:  { [url]: "applied" | "saved" | "notinterested" | "closed" }
 //   archive: { [url]: Job }
 //   at:      { [url]: epoch ms filed }
 //   notifReadAt: { [url]: epoch ms reminder last read }
@@ -17,7 +17,7 @@ export async function GET() {
   if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const rows = await getUserJobs(email); // migrates legacy embedded data on first read
-  const status: Record<string, "applied" | "saved" | "notinterested"> = {};
+  const status: Record<string, "applied" | "saved" | "notinterested" | "closed"> = {};
   const archive: Record<string, Job> = {};
   const at: Record<string, number> = {};
   const notifReadAt: Record<string, number> = {};
@@ -35,7 +35,11 @@ export async function POST(req: Request) {
   const email = session?.user?.email;
   if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { url?: string; status?: "" | "applied" | "saved" | "notinterested"; job?: Job };
+  let body: {
+    url?: string;
+    status?: "" | "applied" | "saved" | "notinterested" | "closed";
+    job?: Job;
+  };
   try {
     body = await req.json();
   } catch {

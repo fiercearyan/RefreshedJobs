@@ -3,7 +3,8 @@ import clientPromise from "./mongodb";
 import { getUserByEmail, users } from "./users";
 import type { Job } from "./types";
 
-export type FiledStatus = "applied" | "saved" | "notinterested";
+// "closed" = the posting was gone / no longer accepting applications when opened.
+export type FiledStatus = "applied" | "saved" | "notinterested" | "closed";
 
 // One document per (user, job). Replaces the embedded jobStatus[] array on the
 // user doc so a user's filed jobs can grow without bloating their user document.

@@ -17,7 +17,7 @@ export interface UserDoc {
   // filed tabs render on any device.
   jobStatus?: {
     url: string;
-    status: "applied" | "saved" | "notinterested";
+    status: "applied" | "saved" | "notinterested" | "closed";
     job: Job;
     at?: number; // epoch ms when filed — used for "recent" sort
     notifReadAt?: number; // epoch ms the saved-job notification was last read

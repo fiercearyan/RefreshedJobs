@@ -53,7 +53,7 @@ app/
   api/search-config/route.ts  GET/POST — read/update the user's location/freshness/roles
   api/highpay-refresh/route.ts  POST/GET — High Pay board: company-scoped LinkedIn scan
   api/highpay-config/route.ts   GET/POST — the High Pay board's own search settings
-  api/status/route.ts     GET/POST — per-user Applied/Saved/Not-interested (+ filed timestamps)
+  api/status/route.ts     GET/POST — per-user Applied/Saved/Not-interested/Closed (+ timestamps)
   api/notifications/route.ts  POST — mark saved-job reminders read
   api/profile/route.ts    GET/POST — phone + encrypted Apify key
   api/admin/migrate/route.ts  one-shot jobStatus → userJobs migration (guarded)
@@ -196,8 +196,8 @@ search, config, scoring or snapshot changes.
 - **Its own settings** — pay bands, sectors, locations, freshness (defaults to 7d — top payers post
   far less often), title phrases and the Apify run budget, saved per user as `highPayConfig`.
   Snapshot is saved separately as `highPaySnapshot`.
-- **Shared filing** — Applied / Saved / Not interested use the same `/api/status` store, so a job
-  filed on either board stays filed on both.
+- **Shared filing** — Applied / Saved / Not interested / Closed use the same `/api/status` store, so
+  a job filed on either board stays filed on both.
 - **Match scoring is unchanged** — the same `lib/scoring.ts` heuristics, so scores are comparable
   across the two boards. Pay bands are High Pay Radar's market estimates, not the posting's salary.
 
