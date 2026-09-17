@@ -26,7 +26,8 @@ type FiledStatus = "applied" | "saved" | "notinterested";
 type Status = Record<string, FiledStatus>;
 
 const SEN_ORDER: Job["sen"][] = ["Entry", "Mid", "Senior", "Staff"];
-const LANG_PREF = ["Java", "Spring Boot", "Go", "Scala", "Python", "C++", "Node.js", "TypeScript"];
+// Sidebar filter chips — only the languages on Aryan's resume.
+const LANG_PREF = ["Java", "Spring Boot", "Go", "Scala"];
 const INFRA_PREF = [
   "Kubernetes",
   "Docker",
